@@ -12,7 +12,7 @@ Araştırma tarihi: **7 Kasım 2026**. Kapsam, klavyenin 315 piksellik RGB LED �
 | Bellekte dört 14 × 5 blok, ardından sağdaki 7 × 5 blok | Upstream `RAW_ORDER`; mantıksal satır sırası doğrudan USB sırası değildir. |
 | Kanal üst sınırı 254; 315 RGB piksel = 945 bayt, protokol çerçevesi 960 bayt | Upstream `MAX_CHANNEL` ve `to_raw_bytes`; mevcut Studio taşıması aynı sınırı korur. |
 | Marka turuncusu `#D97757` | Anthropic’in kendi marka yönergesi; fiziksel AMG65 renk ölçümü değildir. |
-| `(254, 149, 0)` LED turuncusu, ikonlar, sayfa süreleri | Bu çalışma sırasında seçilen **tasarım adayları**. Kullanıcının daha açık ve parlak turuncu isteğiyle yeşil kanal artırıldı, mavi sıfırlandı. Önceki kırmızıya yakın `(254, 78, 6)` tonu bırakıldı. Piksel yerleşimi hesaplanabilir; algılanan renk ve okunabilirlik cihaz üzerinde ayrıca sınanmalıdır. |
+| `(254, 90, 0)` LED turuncusu, ikonlar, sayfa süreleri | Bu çalışma sırasında seçilen **tasarım adayları**. Kullanıcı görsel paletteki 1 numaralı `#FE5A00` tonunu seçti. Piksel yerleşimi hesaplanabilir; algılanan renk ve okunabilirlik cihaz üzerinde ayrıca sınanmalıdır. |
 
 Protokol dayanağı: [aumbro AMG65 projesi](https://github.com/aumbro/leobog_amg65_rgb), incelenen [matrix.py sabit sürümü](https://github.com/aumbro/leobog_amg65_rgb/blob/2bd9ed8e9a2c0f8778562f68449d7869a86476a5/amg65/matrix.py). Bu topluluk tersine mühendislik çalışması, üreticinin yayımladığı bir donanım garantisi değildir. Renk dayanağı: [Anthropic resmi marka yönergesi](https://github.com/anthropics/skills/blob/main/skills/brand-guidelines/SKILL.md).
 
@@ -105,14 +105,14 @@ Adafruit, LED’de kırmızıya yüksek miktarda yeşil eklenince amaçlanan tur
 
 | Kullanım | Değer / yaklaşım | Statü |
 | --- | --- | --- |
-| Claude web/native | `#FF9500` | Studio arayüzünün canlı turuncusu; resmi marka referansı `#D97757` değerinden ayrıdır. |
-| Claude fiziksel LED | `(254, 149, 0)` | Daha açık turuncu adayı; cihaz üzerinde doğrulanmalı. |
+| Claude web/native | `#FE5A00` | Studio arayüzünün canlı turuncusu; resmi marka referansı `#D97757` değerinden ayrıdır. |
+| Claude fiziksel LED | `(254, 90, 0)` | Kullanıcının seçtiği 1 numaralı turuncu; algılanan ton cihazda değerlendirilir. |
 | Codex fiziksel LED | Mevcut mint `(123, 220, 176)` başlangıç adayı | Studio’nun ayırt etme paleti; resmi OpenAI renk standardı iddiası yok. |
 | Cursor fiziksel LED | Mevcut mavi `(134, 190, 248)` başlangıç adayı | Studio paleti; resmi Cursor marka rengi iddiası yok. |
 | ASK/INPUT / ERROR | Amber + `!/?` / kırmızı + çapraz | Renk, sözcük ve şekil birlikte. |
 | Bilinmeyen | Nötr gri + `--` | Sıfır veya başarı görünümüyle karıştırılmaz. |
 
-Ölçüm olmadan bütün renklere sabit bir gamma üssü uygulamayın. Donanım zaten dönüştürüyor olabilir; ikinci dönüşüm düşük seviyeleri aşırı karartabilir. Önce ayrı LED paleti, sonra aynı parlaklık çarpanıyla tutarlı üretim kullanılabilir. Örneğin `(254,149,0)` ve 0,4 çarpanı yuvarlandığında `(102,60,0)` gönderilir. Kullanıcının global parlaklık tercihi korunur. Bu sadece sayısal hesap, algısal renk eşitliği değildir.
+Ölçüm olmadan bütün renklere sabit bir gamma üssü uygulamayın. Donanım zaten dönüştürüyor olabilir; ikinci dönüşüm düşük seviyeleri aşırı karartabilir. Önce ayrı LED paleti, sonra aynı parlaklık çarpanıyla tutarlı üretim kullanılabilir. Örneğin `(254,90,0)` ve 0,4 çarpanı yuvarlandığında `(102,36,0)` gönderilir. Kullanıcının global parlaklık tercihi korunur. Bu sadece sayısal hesap, algısal renk eşitliği değildir.
 
 Karşılaştırma üç sağlayıcının eşit sayısal parlaklıkta eşit parlak göründüğünü varsaymamalıdır. Düşük seviyede kanal yuvarlaması ve difüzör etkisi tonu değiştirebilir. 0,2 / 0,4 / 0,7 gibi birkaç sabit seviye, gündüz ve loş ortamda gözlenmeli; sonunda kullanılan LED paleti ile parlaklık kaydedilmelidir. Bunlar test noktalarıdır, zorunlu kullanıcı ayarları değildir.
 

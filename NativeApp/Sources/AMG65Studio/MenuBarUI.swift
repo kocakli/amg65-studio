@@ -44,7 +44,7 @@ private enum UsageTab:String,CaseIterable,Identifiable {
     var tint:Color {
         switch self { case .overview:return .primary
         case .codex:return Color(red:0.39,green:0.57,blue:0.45)
-        case .claude:return Color(red:1,green:149.0/255,blue:0)
+        case .claude:return Color(red:254.0/255,green:90.0/255,blue:0)
         case .cursor:return Color(red:0.49,green:0.51,blue:0.70) }
     }
 }

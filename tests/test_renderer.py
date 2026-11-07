@@ -134,9 +134,8 @@ class LayoutAndPaletteTests(unittest.TestCase):
     def test_claude_uses_a_saturated_orange_led_accent(self):
         from renderer import COLORS
         red,green,blue=COLORS['claude']
-        # Keep the hue around a clear orange, rather than the old red-orange.
-        self.assertGreaterEqual(green/red,.55)
-        self.assertLessEqual(green/red,.65)
+        # The user's chosen orange has a dominant red channel and no pale blue mix.
+        self.assertGreater(red,green*2)
         self.assertGreater(green,blue*2)
         # Fully saturated; the global brightness slider still controls intensity.
         self.assertGreaterEqual((max((red,green,blue))-min((red,green,blue)))/red,.97)

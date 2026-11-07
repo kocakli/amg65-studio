@@ -9,9 +9,9 @@ import math
 
 WIDTH, HEIGHT = 63, 5
 # LED-specific colours, rather than a measured monitor-to-strip colour match.
-# Claude uses a brighter orange: more green than the earlier red-orange, no blue.
+# Claude uses the user's selected #FE5A00 orange (palette option 1).
 # User brightness still scales every channel, including zero.
-COLORS = {"claude": (254, 149, 0), "codex": (123, 220, 176), "cursor": (134, 190, 248)}
+COLORS = {"claude": (254, 90, 0), "codex": (123, 220, 176), "cursor": (134, 190, 248)}
 PROVIDERS = (("claude", "A"), ("codex", "X"), ("cursor", "C"))
 UNKNOWN = (132, 144, 157)
 BLACK = (0, 0, 0)
