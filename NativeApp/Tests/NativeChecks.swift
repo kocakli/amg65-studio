@@ -161,6 +161,41 @@ import Darwin
         check(language.selection=="tr","invalid stored selection is bounded")
         let quotaJSON = #"{"providers":[{"id":"claude","remaining_percent":80,"remaining_label":"5h","stale":false,"updated_at":"2026-11-07T08:00:00Z","windows":[{"id":"primary","label":"5h","remaining_percent":80,"stale":false,"updated_at":"2026-11-07T08:00:00Z","resets_at":"2026-11-07T13:00:00Z"},{"id":"secondary","label":"7d","remaining_percent":10,"stale":false,"updated_at":"2026-11-07T08:00:00Z","resets_at":null}]}],"hardware_owner":"dashboard","device":{"connected":true}}"#
         let usage=try JSONDecoder().decode(MenuUsageSnapshot.self,from:Data(quotaJSON.utf8))
+        func bridgeFixture(code:String?=nil,connected:Bool?=true,owner:String?="dashboard",running:Bool?=true,
+                           settings:MenuDisplaySettings?=nil) throws -> MenuUsageSnapshot {
+            var object=(try JSONSerialization.jsonObject(with:Data(quotaJSON.utf8))) as! [String:Any]
+            var device:[String:Any]=["message":"Untrusted backend text must not be displayed"]
+            if let code { device["code"]=code }
+            if let connected { device["connected"]=connected }
+            object["device"]=device
+            object["hardware_owner"]=owner
+            object["running"]=running
+            if let settings { object["settings"]=try JSONSerialization.jsonObject(with:JSONEncoder().encode(settings)) }
+            return try JSONDecoder().decode(MenuUsageSnapshot.self,from:JSONSerialization.data(withJSONObject:object))
+        }
+        check(usage.device?.code==nil && usage.bridgeState(offline:false) == .ready && usage.acceptsDeviceCommands,"legacy connected-only bridge response remains supported")
+        let faultBridge=try bridgeFixture(code:"fault_reconnect",connected:false)
+        check(faultBridge.bridgeState(offline:false) == .faultReconnect && !faultBridge.acceptsDeviceCommands,"stopped LED transport with closed handle requires physical reconnect")
+        check(faultBridge.providers[0].remaining==80,"USB fault preserves provider quota data")
+        let inconsistentFault=try bridgeFixture(code:"fault_reconnect",connected:true)
+        check(inconsistentFault.bridgeState(offline:false) == .faultReconnect && !inconsistentFault.acceptsDeviceCommands,"fault code overrides a retained connected handle")
+        let healthyBridge=try bridgeFixture(code:"streaming")
+        check(healthyBridge.bridgeState(offline:false) == .streaming && healthyBridge.acceptsDeviceCommands,"healthy streaming bridge is available")
+        check(healthyBridge.bridgeState(offline:true) == .offline && faultBridge.bridgeState(offline:true) == .offline,"offline state does not present a retained USB status as current")
+        let nativeBridge=try bridgeFixture(code:"fault_reconnect",connected:false,owner:"native")
+        check(nativeBridge.bridgeState(offline:false) == .nativeControl && !nativeBridge.acceptsDeviceCommands,"native ownership takes precedence over old dashboard device status")
+        let disabledBridge=try bridgeFixture(code:"ready",running:false)
+        check(disabledBridge.bridgeState(offline:false) == .displayDisabled && disabledBridge.acceptsDeviceCommands,"disabled LED display is distinct from USB failure and still permits clock sync")
+        let noDeviceBridge=try bridgeFixture(code:"no_device",connected:false)
+        check(noDeviceBridge.bridgeState(offline:false) == .noDevice,"absent USB is distinct from a reconnect fault")
+        let futureBridge=try bridgeFixture(code:"future_status")
+        check(futureBridge.bridgeState(offline:false) == .unknown && !futureBridge.acceptsDeviceCommands,"unknown future device code is graceful and never shown as healthy")
+        let futureDisconnected=try bridgeFixture(code:"future_status",connected:false)
+        check(futureDisconnected.bridgeState(offline:false) == .unknown,"unknown future code is not mistaken for an ordinary unplugged device")
+        let unknownBridge=try bridgeFixture(connected:nil)
+        check(unknownBridge.bridgeState(offline:false) == .unknown,"missing device status remains unknown")
+        let disabledFault=try bridgeFixture(code:"fault_reconnect",connected:false,running:false)
+        check(disabledFault.bridgeState(offline:false) == .faultReconnect,"turning display off does not hide a latched USB fault")
         let current=MenuUsageSnapshot.date("2026-11-07T08:01:00.000Z")!
         check(usage.orderedProviders.map(\.id)==["claude","cursor","codex"],"menu uses fixed three-provider order")
         check(usage.orderedProviders[1].remaining==nil && usage.orderedProviders[2].remaining==nil,"missing menu provider stays unknown, not zero")
@@ -265,6 +300,8 @@ import Darwin
         display.draft.text="hello";display.draft.textColor="#ABCDEF";display.draft.textEffect="matrix"
         display.receive(displaySnapshot(initialSettings))
         check(display.draft.text=="hello" && display.draft.textEffect=="matrix" && display.dirty && settingsRequests==0,"effect choice and polling preserve text draft without sending")
+        display.receive(try bridgeFixture(code:"fault_reconnect",connected:false,settings:initialSettings))
+        check(display.draft.text=="hello" && display.draft.textEffect=="matrix" && display.dirty && settingsRequests==0,"USB fault snapshot preserves unsaved display draft and does not send")
         await display.save()
         check(sentSettings["text"] as? String=="HELLO" && sentSettings["text_color"] as? String=="#abcdef","display request matches backend canonicalization")
         check(sentSettings["text_effect"] as? String=="matrix","Apply submits selected text effect")

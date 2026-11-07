@@ -47,8 +47,25 @@ struct MenuUsageProvider:Decodable,Identifiable {
     }
 }
 
+enum MenuBridgeState:Equatable {
+    case offline,faultReconnect,nativeControl,displayDisabled,streaming,ready,noDevice,unknown
+    var titleKey:String {
+        switch self {
+        case .offline:"Yerel köprü çevrimdışı"
+        case .faultReconnect:"LED aktarımı durdu"
+        case .nativeControl:"USB denetimi yerel sürücüde"
+        case .displayDisabled:"Canlı LED kapalı"
+        case .streaming:"LED aktarımı etkin"
+        case .ready:"USB bağlı"
+        case .noDevice:"USB bağlantısı bekleniyor"
+        case .unknown:"USB durumu bilinmiyor"
+        }
+    }
+}
+
 struct MenuUsageSnapshot:Decodable {
-    struct Device:Decodable { let connected:Bool? }
+    // Stable codes only. Arbitrary backend diagnostic messages are not displayed.
+    struct Device:Decodable { let connected:Bool?; let code:String? }
     let providers:[MenuUsageProvider]
     let hardwareOwner:String?
     let device:Device?
@@ -57,6 +74,24 @@ struct MenuUsageSnapshot:Decodable {
     enum CodingKeys:String,CodingKey { case providers,device,settings,running; case hardwareOwner="hardware_owner" }
     var orderedProviders:[MenuUsageProvider] {
         ["claude","cursor","codex"].map { id in providers.first{$0.id == id} ?? .unknown(id) }
+    }
+    func bridgeState(offline:Bool)->MenuBridgeState {
+        if offline { return .offline }
+        if hardwareOwner=="native" || device?.code=="native_control" { return .nativeControl }
+        if device?.code=="fault_reconnect" { return .faultReconnect }
+        if running==false { return .displayDisabled }
+        if let code=device?.code,!["ready","streaming","waiting","no_device"].contains(code) { return .unknown }
+        if device?.code=="waiting" || device?.code=="no_device" || device?.connected==false { return .noDevice }
+        guard device?.connected==true else { return .unknown }
+        switch device?.code {
+        case nil,"ready": return .ready
+        case "streaming": return .streaming
+        default: return .unknown
+        }
+    }
+    var acceptsDeviceCommands:Bool {
+        hardwareOwner=="dashboard" && device?.connected==true
+            && (device?.code==nil || device?.code=="ready" || device?.code=="streaming")
     }
     static func validPercent(_ value:Double?)->Double? {
         guard let value,value.isFinite,(0...100).contains(value) else { return nil }
@@ -117,7 +152,8 @@ private final class LocalOnlySession:NSObject,URLSessionTaskDelegate {
     convenience init(preview:MenuUsageSnapshot) { self.init(); snapshot=preview; offline=false; measuredNow=Date() }
     #endif
     var providers:[MenuUsageProvider] { snapshot?.orderedProviders ?? ["claude","cursor","codex"].map(MenuUsageProvider.unknown) }
-    var canSync:Bool { !offline && !syncing && !refreshing && snapshot?.hardwareOwner == "dashboard" && snapshot?.device?.connected == true }
+    var bridgeState:MenuBridgeState { snapshot?.bridgeState(offline:offline) ?? .offline }
+    var canSync:Bool { !offline && !syncing && !refreshing && snapshot?.acceptsDeviceCommands==true }
 
     /// The popover's .task owns this loop; hiding it cancels polling and any request.
     func poll() async {

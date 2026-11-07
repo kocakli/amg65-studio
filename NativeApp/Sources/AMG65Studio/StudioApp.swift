@@ -285,8 +285,16 @@ struct StudioRoot: View {
                         }
                         Spacer()
                         if session.acquiring { ProgressView().controlSize(.small) }
+                        else if hid.failedRegistryID != nil {
+                            Label {
+                                Text(L("LED aktarımı durdu")).foregroundStyle(.primary)
+                            } icon: {
+                                Image(systemName:"exclamationmark.triangle.fill").foregroundStyle(.orange)
+                            }.font(.system(size:11)).help(L("USB kablosunu çıkarıp yeniden takın."))
+                        }
                         else if !session.active { Button(L("Yeniden bağlan")) { session.setNativeRequested(true,by:"window") } }
-                        else { Label(L(hid.connection == .wired ? "USB bağlı":"Alıcı bağlı"),systemImage:"circle.fill").font(.system(size:11)).foregroundStyle(.mint) }
+                        else if hid.connection != .none { Label(L(hid.connection == .wired ? "USB bağlı":"Alıcı bağlı"),systemImage:"circle.fill").font(.system(size:11)).foregroundStyle(.mint) }
+                        else { Label(L("USB durumu bilinmiyor"),systemImage:"questionmark.circle").font(.system(size:11)).foregroundStyle(.secondary) }
                     }
                     if let error = hid.error { Text(L(error)).font(.system(size:12)).foregroundStyle(.orange) }
                     ScrollView {

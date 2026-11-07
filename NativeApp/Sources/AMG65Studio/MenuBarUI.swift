@@ -44,7 +44,7 @@ private enum UsageTab:String,CaseIterable,Identifiable {
     var tint:Color {
         switch self { case .overview:return .primary
         case .codex:return Color(red:0.39,green:0.57,blue:0.45)
-        case .claude:return Color(red:1,green:122.0/255,blue:47.0/255)
+        case .claude:return Color(red:1,green:149.0/255,blue:0)
         case .cursor:return Color(red:0.49,green:0.51,blue:0.70) }
     }
 }
@@ -403,20 +403,56 @@ struct StudioMenuPopover:View {
         }.frame(width:50)
     }
     private var header:some View {
-        HStack(spacing:10) {
-            Text(section.title).font(.system(size:15,weight:.semibold))
-            Spacer(minLength:4)
-            if section.native {
-                if session.acquiring || session.releasing || hid.busy { ProgressView().controlSize(.small) }
-                else if session.active {
-                    Image(systemName:"cable.connector").foregroundStyle(.mint).help(L("USB bağlı"))
+        let reconnect=monitor.bridgeState == .faultReconnect || (section.native && hid.failedRegistryID != nil)
+        return VStack(alignment:.leading,spacing:3) {
+            HStack(spacing:10) {
+                Text(section.title).font(.system(size:15,weight:.semibold)).lineLimit(1)
+                Spacer(minLength:4)
+                if reconnect {
+                    Label {
+                        Text(L("LED aktarımı durdu")).foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName:"exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    }.font(.system(size:10,weight:.medium)).lineLimit(1)
+                } else if section.native {
+                    if session.acquiring || session.releasing || hid.busy { ProgressView().controlSize(.small) }
+                    else if session.active && hid.connection != .none && hid.failedRegistryID==nil {
+                        Image(systemName:"cable.connector").foregroundStyle(.mint).help(L("USB bağlı"))
+                    } else if session.active {
+                        Image(systemName:"questionmark.circle").foregroundStyle(.secondary).help(L("USB durumu bilinmiyor"))
+                    } else {
+                        Button(L("Yeniden bağlan")) { session.setNativeRequested(menuVisible,by:"menu") }.font(.system(size:11))
+                    }
                 } else {
-                    Button(L("Yeniden bağlan")) { session.setNativeRequested(menuVisible,by:"menu") }.font(.system(size:11))
+                    bridgeIndicator
                 }
-            } else if monitor.offline {
-                Image(systemName:"wifi.slash").foregroundStyle(.orange).help(L("Yerel köprü çevrimdışı"))
             }
+            if reconnect {
+                Text(L("USB kablosunu çıkarıp yeniden takın."))
+                    .font(.system(size:10)).foregroundStyle(.primary).lineLimit(1).minimumScaleFactor(0.85)
+            }
+        // Reuse the existing header: warnings do not shift tabs or enlarge the 410pt usage panel.
         }.padding(.horizontal,18).frame(height:53)
+    }
+    private var bridgeIndicator:some View {
+        let state=monitor.bridgeState
+        let symbol:String = switch state {
+        case .offline:"wifi.slash"
+        case .faultReconnect:"exclamationmark.triangle.fill"
+        case .nativeControl:"hand.raised"
+        case .displayDisabled:"pause.circle"
+        case .streaming:"dot.radiowaves.left.and.right"
+        case .ready:"cable.connector"
+        case .noDevice:"cable.connector"
+        case .unknown:"questionmark.circle"
+        }
+        let tint:Color = switch state {
+        case .ready,.streaming:.mint
+        case .offline,.faultReconnect,.noDevice:.orange
+        default:.secondary
+        }
+        return Image(systemName:symbol).foregroundStyle(tint)
+            .help(L(state.titleKey)).accessibilityLabel(L(state.titleKey))
     }
     @ViewBuilder private var content:some View {
         switch section {

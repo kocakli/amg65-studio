@@ -134,9 +134,11 @@ class LayoutAndPaletteTests(unittest.TestCase):
     def test_claude_uses_a_saturated_orange_led_accent(self):
         from renderer import COLORS
         red,green,blue=COLORS['claude']
-        self.assertGreater(red,green*2)
+        # Keep the hue around a clear orange, rather than the old red-orange.
+        self.assertGreaterEqual(green/red,.55)
+        self.assertLessEqual(green/red,.65)
         self.assertGreater(green,blue*2)
-        # A vivid orange keeps its warm hue while removing the old pale blue mix.
+        # Fully saturated; the global brightness slider still controls intensity.
         self.assertGreaterEqual((max((red,green,blue))-min((red,green,blue)))/red,.97)
 
     def test_percentage_units_have_a_stable_right_edge_as_values_change(self):

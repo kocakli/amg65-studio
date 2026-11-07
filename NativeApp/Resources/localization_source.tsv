@@ -213,3 +213,10 @@ Claude yengeci, Codex robotu ve Cursor imleci; seçilen araçta veya Otomatik'te
 Gösterilecek araç	Tool to display	Herramienta que mostrar	显示工具	表示するツール
 Otomatik	Automatic	Automático	自动	自動
 Seçilen aracın durumları ve çalışma adımları gösterilir.	Shows the selected tool’s status and work steps.	Muestra los estados y los pasos de trabajo de la herramienta seleccionada.	显示所选工具的状态和工作步骤。	選択したツールの状態と作業ステップを表示します。
+LED aktarımı durdu	LED transfer stopped	Transferencia LED detenida	LED 传输已停止	LED 転送が停止しました
+USB kablosunu çıkarıp yeniden takın.	Unplug the USB cable, then reconnect it.	Desconecta el cable USB y vuelve a conectarlo.	请拔下 USB 线，然后重新连接。	USB ケーブルを抜いて、再接続してください。
+USB bağlantısı bekleniyor	Waiting for USB connection	Esperando la conexión USB	等待 USB 连接	USB 接続待ち
+USB denetimi yerel sürücüde	Native driver controls USB	El controlador nativo controla USB	原生驱动正在控制 USB	ネイティブドライバーが USB を制御中
+Canlı LED kapalı	Live LED display is off	La vista LED en vivo está desactivada	实时 LED 显示已关闭	ライブ LED 表示はオフです
+LED aktarımı etkin	LED transfer is active	Transferencia LED activa	LED 传输正在进行	LED 転送中
+USB durumu bilinmiyor	USB status unknown	Estado USB desconocido	USB 状态未知	USB の状態は不明です

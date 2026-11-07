@@ -8,10 +8,10 @@ from __future__ import annotations
 import math
 
 WIDTH, HEIGHT = 63, 5
-# LED-specific colours, rather than uncalibrated monitor RGB. Less green makes
-# Claude more saturated on an emissive strip. Lower blue removes the pale cast;
-# user brightness still scales every channel. This is not a measured colour match.
-COLORS = {"claude": (254, 78, 6), "codex": (123, 220, 176), "cursor": (134, 190, 248)}
+# LED-specific colours, rather than a measured monitor-to-strip colour match.
+# Claude uses a brighter orange: more green than the earlier red-orange, no blue.
+# User brightness still scales every channel, including zero.
+COLORS = {"claude": (254, 149, 0), "codex": (123, 220, 176), "cursor": (134, 190, 248)}
 PROVIDERS = (("claude", "A"), ("codex", "X"), ("cursor", "C"))
 UNKNOWN = (132, 144, 157)
 BLACK = (0, 0, 0)
