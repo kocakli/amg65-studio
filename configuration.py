@@ -4,7 +4,7 @@ import re
 
 DEFAULTS = {'display_mode':'overview','brightness':0.4,'text':'AMG65 STUDIO',
             'text_color':'#7bdcb0','text_effect':'none','activity_enabled':True,'mascot_enabled':False,
-            'tracked_provider':'all'}
+            'tracked_provider':'all','claude_green_gain':1.0}
 LIGHTING = {'mode':1,'color':'#7bdcb0','brightness':3,'speed':3,'colorful':False}
 
 def color(value):
@@ -35,6 +35,10 @@ def settings_patch(value):
         b=value['brightness']
         if type(b) not in (int,float) or not math.isfinite(b) or not 0<=b<=1:
             raise ValueError('Ekran parlaklığı 0 ile 1 arasında olmalı.')
+    if 'claude_green_gain' in value:
+        gain=value['claude_green_gain']
+        if type(gain) not in (int,float) or not 0<=gain<=1 or not math.isfinite(gain):
+            raise ValueError('Claude renk dengesi 0 ile 1 arasında olmalı.')
     if 'activity_enabled' in value and type(value['activity_enabled']) is not bool:
         raise ValueError('activity_enabled bir boolean olmalı.')
     if 'mascot_enabled' in value and type(value['mascot_enabled']) is not bool:

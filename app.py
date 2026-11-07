@@ -139,7 +139,8 @@ class Application:
             pass
         self.state = self.adapter.snapshot()
         self.state.update(device={'connected': False, 'code':'waiting', 'message': 'USB bağlantısı bekleniyor', 'last_sync': None},
-                          running=self.display, matrix={'pixels':render_overview(self.state), 'view':'overview'},
+                          running=self.display, matrix={'pixels':render_overview(self.state,self.settings['brightness'],claude_green_gain=self.settings['claude_green_gain']),
+                                                       'view':'overview','claude_green_gain':self.settings['claude_green_gain']},
                           settings=copy.deepcopy(self.settings), hardware_owner='dashboard',
                           product={'id':'amg65-studio','version':'0.3.0'},
                           operation={'pending':False,'code':'ready','message':'Hazır'})
@@ -340,6 +341,7 @@ class Application:
                 phase = int(tick - started) % 24
                 mode=self.settings['display_mode']
                 brightness=self.settings['brightness']
+                green_gain=self.settings['claude_green_gain']
                 tracked=self.settings.get('tracked_provider','all')
                 # Advance one visual step per rendered/acknowledged iteration.
                 # A slow USB frame must not jump over the falling-letter phases.
@@ -347,29 +349,29 @@ class Application:
                 activity=select_activity(snapshot.get('activity'),tick-started,provider=tracked) if self.settings.get('activity_enabled',True) else None
                 mascot=bool(activity and self.settings.get('mascot_enabled',False))
                 if activity:
-                    pixels=(render_mascot if mascot else render_activity)(activity,snapshot,brightness,animation_elapsed)
+                    pixels=(render_mascot if mascot else render_activity)(activity,snapshot,brightness,animation_elapsed,claude_green_gain=green_gain)
                     view='activity'
                     with self.lock: self.state['activity']['selected']=activity
                 elif tracked!='all':
                     provider=next((row for row in snapshot['providers'] if row['id']==tracked),{'id':tracked})
-                    pixels=render_detail(provider,brightness)
+                    pixels=render_detail(provider,brightness,claude_green_gain=green_gain)
                     view=tracked
                 elif mode=='text':
                     pixels=render_text(self.settings['text'],self.settings['text_color'],brightness,animation_elapsed,
                                        marquee=self.settings.get('text_effect')=='scroll')
                     view='text'
                 elif mode=='overview' or phase < 12:
-                    pixels = render_overview(snapshot,brightness)
+                    pixels = render_overview(snapshot,brightness,claude_green_gain=green_gain)
                     view = 'overview'
                 else:
                     provider = snapshot['providers'][(phase - 12) // 4]
-                    pixels = render_detail(provider,brightness)
+                    pixels = render_detail(provider,brightness,claude_green_gain=green_gain)
                     view = provider['id']
                 if not mascot and (not activity or activity['state'] in ('running','queued','completed')) and not (view=='text' and self.settings.get('text_effect')=='scroll'):
                     pixels=apply_text_effect(pixels,self.settings.get('text_effect','none'),brightness,animation_elapsed,
                                              left=7 if activity else 0)
                 with self.lock:
-                    self.state['matrix'] = {'pixels':pixels, 'view':view,
+                    self.state['matrix'] = {'pixels':pixels, 'view':view,'claude_green_gain':green_gain,
                                             'activity':{key:activity.get(key) for key in ('provider','state','summary')} if activity else None}
                 if self.display and self.bridge and pixels != last_pixels:
                     result = self.bridge.send('frame', pixels=pixels)

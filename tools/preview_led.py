@@ -5,7 +5,7 @@ SVG/HTML use only the standard library. PNG/GIF are optional and require Pillow 
 the caller's environment; Pillow is not a Studio runtime dependency. No device,
 account, settings, cache, network or provider authentication is accessed.
 
-Example: python3 tools/preview_led.py --html /tmp/led.html --png /tmp/led.png
+Example: python3 tools/preview_led.py --claude-green-gain 0.29 --html /tmp/led.html
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from renderer import (ACTIVITY_LABELS, COLORS, HEIGHT, WIDTH, activity_label, apply_text_effect, render_activity,
+from renderer import (ACTIVITY_LABELS, DISPLAY_COLORS, HEIGHT, WIDTH, activity_label, apply_text_effect, render_activity,
                       render_claude_mascot, render_mascot, render_detail, render_overview, render_text, text_width)
 
 SNAPSHOT = {'providers': [
@@ -46,23 +46,51 @@ WORK_STEPS = {
 }
 
 
-def fixtures():
+def green_gain(value):
+    """A bounded profile, not a claim of measured optical calibration."""
+    try:
+        gain = float(value)
+    except (TypeError, ValueError) as error:
+        raise argparse.ArgumentTypeError('Claude green gain must be a finite number from 0 to 1.') from error
+    if isinstance(value, bool) or not math.isfinite(gain) or not 0 <= gain <= 1:
+        raise argparse.ArgumentTypeError('Claude green gain must be a finite number from 0 to 1.')
+    return gain
+
+
+def profile_info(claude_green_gain=1.0):
+    gain = green_gain(claude_green_gain)
+    # Report the actual renderer result, without a separate colour transform.
+    frame = render_detail(SNAPSHOT['providers'][0], 1, claude_green_gain=gain)
+    drive = next(pixel for pixel in frame if any(pixel))
+    return {'claude_green_gain':gain,
+            'target_hex':'#'+''.join(f'{value:02X}' for value in DISPLAY_COLORS['claude']),
+            'drive_rgb_at_full_brightness':drive}
+
+
+def profile_note(claude_green_gain=1.0):
+    info = profile_info(claude_green_gain)
+    rgb = ','.join(str(value) for value in info['drive_rgb_at_full_brightness'])
+    return f"Claude hedef {info['target_hex']} · yeşil ×{info['claude_green_gain']:g} · gönderilen RGB {rgb} (%100)"
+
+
+def fixtures(claude_green_gain=1.0):
     """Produce every displayed RGB value through the production renderer."""
-    frames = {'overview': [render_overview(SNAPSHOT, 1)]}
+    gain = green_gain(claude_green_gain)
+    frames = {'overview': [render_overview(SNAPSHOT, 1, claude_green_gain=gain)]}
     for row in SNAPSHOT['providers']:
         provider = row['id']
-        frames['detail:'+provider] = [render_detail(row, 1)]
+        frames['detail:'+provider] = [render_detail(row, 1, claude_green_gain=gain)]
         for state in STATES:
             times = (0, .5, 1, 1.5) if state == 'running' else (0,)
             frames['activity:'+provider+':'+state] = [
-                render_activity({'provider':provider, 'state':state}, SNAPSHOT, 1, elapsed)
+                render_activity({'provider':provider, 'state':state}, SNAPSHOT, 1, elapsed, claude_green_gain=gain)
                 for elapsed in times]
     unknown = deepcopy(SNAPSHOT)
     unknown['providers'][0]['remaining_percent'] = None
     stale = deepcopy(SNAPSHOT)
     stale['providers'][0]['stale'] = True
-    frames['unknown'] = [render_overview(unknown, 1)]
-    frames['stale'] = [render_overview(stale, 1)]
+    frames['unknown'] = [render_overview(unknown, 1, claude_green_gain=gain)]
+    frames['stale'] = [render_overview(stale, 1, claude_green_gain=gain)]
     frames['text'] = [render_text(EXAMPLE_TEXT, '#7bdcb0', 1)]
     for key, sequence in list(frames.items()):
         activity=key.startswith('activity:')
@@ -85,7 +113,7 @@ def fixtures():
     for provider in NAMES:
         for state in STATES:
             frames['mascot:'+provider+':'+state] = [
-                render_mascot({'provider':provider,'state':state}, SNAPSHOT, 1, phase*.5)
+                render_mascot({'provider':provider,'state':state}, SNAPSHOT, 1, phase*.5, claude_green_gain=gain)
                 for phase in range(MASCOT_STEPS if state=='running' else 2 if state=='completed' else 1)]
     # Preserve earlier Claude-only export flags and fixture references.
     for state in STATES:
@@ -93,10 +121,10 @@ def fixtures():
     for summary in WORK_STEPS:
         for provider in NAMES:
             frames['step:activity:'+provider+':'+summary] = [
-                render_activity({'provider':provider,'state':'running','summary':summary}, SNAPSHOT, 1, phase*.5)
+                render_activity({'provider':provider,'state':'running','summary':summary}, SNAPSHOT, 1, phase*.5, claude_green_gain=gain)
                 for phase in range(4)]
         frames['step:mascot:'+summary] = [
-            render_claude_mascot({'provider':'claude','state':'running','summary':summary}, SNAPSHOT, 1, phase*.5)
+            render_claude_mascot({'provider':'claude','state':'running','summary':summary}, SNAPSHOT, 1, phase*.5, claude_green_gain=gain)
             for phase in range(MASCOT_STEPS)]
     for sequence in frames.values():
         for frame in sequence:
@@ -147,7 +175,7 @@ def sheet_frame(frames, key):
     return sequence[2 if key.startswith('effect:matrix:') else 6 if key.startswith('effect:') else 0]
 
 
-def svg_sheet(frames):
+def svg_sheet(frames, *, claude_green_gain=1.0):
     parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{SHEET_WIDTH}" height="{SHEET_HEIGHT}" viewBox="0 0 {SHEET_WIDTH} {SHEET_HEIGHT}" role="img" aria-labelledby="title desc">',
         '<title id="title">AMG65 Studio LED düzenleri — sentetik örnek veriler</title>',
         '<desc id="desc">Gerçek 63 × 5 renderer ile genel görünüm, kota detayı, iş durumları, bilinmeyen ve eski veri ile metin örnekleri. Fiziksel LED renk ölçümü değildir.</desc>',
@@ -155,7 +183,8 @@ def svg_sheet(frames):
         '<g font-family="-apple-system,BlinkMacSystemFont,Arial,sans-serif">',
         '<text x="52" y="54" font-size="13" letter-spacing="3" fill="#8da3b5">AMG65 STUDIO / TASARIM ÖNİZLEMESİ</text>',
         '<text x="50" y="113" font-size="43" font-weight="700" fill="#f3f7fc">63 × 5. Her pikselin bir işi var.</text>',
-        '<text x="52" y="150" font-size="16" fill="#afbdcc">ÖRNEK VERİ · Claude %98 · Codex %46 · Cursor %54 · Parlaklık %100</text>']
+        '<text x="52" y="150" font-size="16" fill="#afbdcc">ÖRNEK VERİ · Claude %98 · Codex %46 · Cursor %54 · Parlaklık %100</text>',
+        f'<text x="52" y="173" font-size="11" fill="#8da3b5">{html.escape(profile_note(claude_green_gain))}</text>']
     for index, (key,title,subtitle,note) in enumerate(ROWS):
         y = 183 + index*130
         parts.extend([
@@ -175,7 +204,7 @@ def svg_sheet(frames):
         f'<path d="M52 {bottom}H1188" stroke="#293746"/>',
         f'<text x="52" y="{bottom+32}" font-size="14" fill="#c7d7e6">Aktivite düzeni: 5 px simge → x7 ad → x32 durum → x57 / 59 / 61 kota göstergeleri</text>',
         f'<text x="52" y="{bottom+63}" font-size="12" fill="#8da3b5">Tüm kareler uygulamanın gerçek renderer.py işlevleriyle üretildi. Değerler tamamen sentetiktir.</text>',
-        f'<text x="52" y="{bottom+87}" font-size="12" fill="#8da3b5">Bu görsel fiziksel LED renk/parlaklık ölçümü değildir. Gerçek cihazın optiği farklı görünebilir.</text>',
+        f'<text x="52" y="{bottom+87}" font-size="12" fill="#8da3b5">Pikseller gönderilen RGB verisidir; fiziksel LED renginin simülasyonu veya ölçümü değildir.</text>',
         '</g></svg>'])
     return '\n'.join(parts)
 
@@ -191,6 +220,7 @@ HTML_TEMPLATE = r'''<!doctype html>
 <div class="topline"><div class="eyebrow">AMG65 STUDIO / 63 × 5 LED</div><span class="badge">Çevrimdışı · yalnızca örnek veri</span></div>
 <h1>Klavyenin küçük ekranı.<br>Bir bakışta büyük resim.</h1>
 <p>Kotalar ve iş durumları, uygulamanın gerçek çizim koduyla. Sağlayıcıyı, durumu ve parlaklığı seçin; tüm düzenleri aynı panelde karşılaştırın.</p>
+<p class="note">__PROFILE_NOTE__<br>Başlık ve renk anahtarı hedef rengi gösterir. Piksel noktaları gönderilen RGB verisidir; fiziksel LED renginin simülasyonu veya ölçümü değildir.</p>
 <section class="console" aria-label="Etkileşimli LED önizlemesi">
  <div class="console-head"><strong id="view-title">Genel görünüm</strong><span class="pill">63 sütun · 5 satır · 315 RGB piksel</span></div>
  <div class="matrix-frame"><svg class="matrix" id="preview" viewBox="0 0 756 60" role="img" aria-labelledby="view-title preview-description"><desc id="preview-description">Sentetik Claude yüzde98, Codex yüzde46 ve Cursor yüzde54 kalan kota.</desc></svg></div>
@@ -232,13 +262,15 @@ render();setInterval(()=>{if(animate&&document.visibilityState==='visible'&&((['
 </script></html>'''
 
 
-def html_preview(frames):
-    payload = json.dumps({'frames':frames,'rows':ROWS,'names':NAMES,'labels':ACTIVITY_LABELS}, ensure_ascii=False, separators=(',',':'))
+def html_preview(frames, *, claude_green_gain=1.0):
+    payload = json.dumps({'frames':frames,'rows':ROWS,'names':NAMES,'labels':ACTIVITY_LABELS,
+                          'profile':profile_info(claude_green_gain)}, ensure_ascii=False, separators=(',',':'))
     return HTML_TEMPLATE.replace('__DATA__', payload.replace('<','\\u003c')).replace(
-        '__CLAUDE_COLOR__','#'+''.join(f'{channel:02x}' for channel in COLORS['claude']))
+        '__CLAUDE_COLOR__','#'+''.join(f'{channel:02x}' for channel in DISPLAY_COLORS['claude'])).replace(
+        '__PROFILE_NOTE__',html.escape(profile_note(claude_green_gain)))
 
 
-def png_sheet(frames, path):
+def png_sheet(frames, path, *, claude_green_gain=1.0):
     try:
         from PIL import Image, ImageDraw, ImageFont
     except ImportError as error:
@@ -254,6 +286,7 @@ def png_sheet(frames, path):
     text(52,54,'AMG65 STUDIO / TASARIM ÖNİZLEMESİ',13,'#8da3b5')
     text(50,113,'63 × 5. Her pikselin bir işi var.',43)
     text(52,150,'ÖRNEK VERİ · Claude %98 · Codex %46 · Cursor %54 · Parlaklık %100',16,'#afbdcc')
+    text(52,173,profile_note(claude_green_gain),11,'#8da3b5')
     for index,(key,title,subtitle,note) in enumerate(ROWS):
         y=183+index*130
         draw.rounded_rectangle((36,y,1204,y+116),16,fill='#101a25',outline='#223141')
@@ -266,7 +299,7 @@ def png_sheet(frames, path):
     draw.line((52,bottom,1188,bottom),fill='#293746')
     text(52,bottom+32,'Aktivite düzeni: 5 px simge → x7 ad → x32 durum → x57 / 59 / 61 kota göstergeleri',14,'#c7d7e6')
     text(52,bottom+63,'Tüm kareler uygulamanın gerçek renderer.py işlevleriyle üretildi. Değerler tamamen sentetiktir.',12,'#8da3b5')
-    text(52,bottom+87,'Bu görsel fiziksel LED renk/parlaklık ölçümü değildir. Gerçek cihazın optiği farklı görünebilir.',12,'#8da3b5')
+    text(52,bottom+87,'Pikseller gönderilen RGB verisidir; fiziksel LED renginin simülasyonu veya ölçümü değildir.',12,'#8da3b5')
     image.save(path, 'PNG', optimize=True)
 
 
@@ -286,6 +319,7 @@ def gif_matrix(frames, path, effect='matrix'):
         title='MATRIX · HARFLER AŞAĞI AKAR' if effect=='matrix' else 'KAYAN YAZI · KISA METİN DE AKAR'
         draw.text((28,22),title,font=font(23),fill='#edf5fc')
         draw.text((28,57),'AMG65 STUDIO  /  63 × 5  /  GERÇEK RENDERER',font=font(11),fill='#94a9bd')
+        draw.text((28,75),'ÖZEL METİN: CLAUDE RENK PROFİLİ UYGULANMAZ · PİKSELLER GÖNDERİLEN RGB VERİSİDİR',font=font(9),fill='#94a9bd')
         draw.rounded_rectangle((24,87,936,182),12,fill='#05090e',outline='#304152')
         for index,rgb in enumerate(frame):
             x=46+(index%WIDTH)*14;y=107+(index//WIDTH)*14
@@ -297,7 +331,7 @@ def gif_matrix(frames, path, effect='matrix'):
     images[0].save(path,'GIF',save_all=True,append_images=images[1:],duration=500,loop=0,disposal=2,optimize=True)
 
 
-def mascot_artifacts(frames, png_path=None, gif_path=None):
+def mascot_artifacts(frames, png_path=None, gif_path=None, *, claude_green_gain=1.0):
     """Draw the production sprite at two scales, plus its full walking cycle."""
     try:
         from PIL import Image, ImageDraw, ImageFont
@@ -332,24 +366,25 @@ def mascot_artifacts(frames, png_path=None, gif_path=None):
             draw.rounded_rectangle((451,y+16,1194,y+100),11,fill='#05090e',outline='#304152')
             pixels(draw,frame,468,y+34,11.4,3.8)
         draw.line((40,970,1200,970),fill='#293746')
-        draw.text((40,990),'Sahne 0–24 · Claude kimliği A 26–28 · Durum 32–52 · Kota göstergeleri 57 / 59 / 61',font=font(13),fill='#b7c9d9')
-        draw.text((40,1019),'Örnek veridir; fiziksel LED renk/parlaklık ölçümü değildir. Maskot sahnesine metin efekti uygulanmaz.',font=font(11),fill='#94a9bd')
+        draw.text((40,990),profile_note(claude_green_gain),font=font(13),fill='#b7c9d9')
+        draw.text((40,1019),'Örnek pikseller gönderilen RGB verisidir; fiziksel LED renginin simülasyonu veya ölçümü değildir.',font=font(11),fill='#94a9bd')
         image.save(png_path,'PNG',optimize=True)
     if gif_path:
         images=[]
         for frame in frames['mascot:running']:
             image=Image.new('RGB',(960,236),'#090f16');draw=ImageDraw.Draw(image)
             draw.text((28,22),'CLAUDE · ÇALIŞIRKEN İLERİ GERİ YÜRÜR',font=font(23),fill='#edf5fc')
-            draw.text((28,57),'11 × 5 MASKOT  /  63 × 5 TAM SAHNE  /  GERÇEK RENDERER',font=font(11),fill='#94a9bd')
+            draw.text((28,57),profile_note(claude_green_gain),font=font(11),fill='#94a9bd')
+            draw.text((28,75),'PİKSELLER: GÖNDERİLEN RGB · FİZİKSEL RENK SİMÜLASYONU DEĞİLDİR',font=font(9),fill='#94a9bd')
             draw.rounded_rectangle((24,87,936,182),12,fill='#05090e',outline='#304152')
             pixels(draw,frame,46,107,14,4.5)
             draw.text((28,204),'ÖRNEK DURUM · 2 KARE/SN · FİZİKSEL RENK ÖLÇÜMÜ DEĞİLDİR',font=font(11),fill='#94a9bd')
-            draw.text((931,204),'CLAUDE / RUN',font=font(11),fill=COLORS['claude'],anchor='ra')
+            draw.text((931,204),'CLAUDE / RUN',font=font(11),fill=DISPLAY_COLORS['claude'],anchor='ra')
             images.append(image)
         images[0].save(gif_path,'GIF',save_all=True,append_images=images[1:],duration=500,loop=0,disposal=2,optimize=True)
 
 
-def gif_work_steps(frames, path):
+def gif_work_steps(frames, path, *, claude_green_gain=1.0):
     """Synthetic summary categories, never an inferred live task history."""
     try:
         from PIL import Image, ImageDraw, ImageFont
@@ -366,6 +401,7 @@ def gif_work_steps(frames, path):
             image=Image.new('RGB',(960,236),'#090f16');draw=ImageDraw.Draw(image)
             draw.text((28,22),'CODEX · İŞ ADIMLARI',font=font(23),fill='#edf5fc')
             draw.text((28,57),'SENTETİK ADIM SIRASI  /  GERÇEK BİR GÖREV GEÇMİŞİ DEĞİLDİR',font=font(11),fill='#94a9bd')
+            draw.text((28,75),profile_note(claude_green_gain)+' · RGB verisi; optik simülasyon değil.',font=font(9),fill='#94a9bd')
             draw.rounded_rectangle((24,87,936,182),12,fill='#05090e',outline='#304152')
             for index,rgb in enumerate(frame):
                 x=46+(index%WIDTH)*14;y=107+(index//WIDTH)*14
@@ -376,7 +412,7 @@ def gif_work_steps(frames, path):
     images[0].save(path,'GIF',save_all=True,append_images=images[1:],duration=500,loop=0,disposal=2,optimize=True)
 
 
-def product_mascot_artifacts(frames, png_path=None, gif_path=None):
+def product_mascot_artifacts(frames, png_path=None, gif_path=None, *, claude_green_gain=1.0):
     """Compare three original Studio characters using only actual renderer data."""
     try:
         from PIL import Image, ImageDraw, ImageFont
@@ -396,9 +432,10 @@ def product_mascot_artifacts(frames, png_path=None, gif_path=None):
         draw.text((32,25),'AMG65 STUDIO / SAĞLAYICI MASKOTLARI',font=font(13),fill='#94a9bd')
         draw.text((32,58),'Üç sağlayıcı. Üç karakter.',font=font(39),fill='#edf5fc')
         draw.text((32,114),'Özgün Studio piksel uyarlamaları · Her hücre gerçek 63 × 5 renderer karesi · Veriler ve durumlar sentetiktir',font=font(16),fill='#a9bfd1')
+        draw.text((32,142),profile_note(claude_green_gain),font=font(12),fill='#94a9bd')
         for column,(provider,name) in enumerate(NAMES.items()):
             x=140+550*column
-            draw.text((x,161),name,font=font(29),fill=COLORS[provider])
+            draw.text((x,161),name,font=font(29),fill=DISPLAY_COLORS[provider])
             draw.text((x,199),characters[provider],font=font(13),fill='#94a9bd')
             for row,(state,label) in enumerate(STATES.items()):
                 y=235+row*130
@@ -410,7 +447,7 @@ def product_mascot_artifacts(frames, png_path=None, gif_path=None):
                 pixels(draw,frames['mascot:'+provider+':'+state][0],x+17,y+33,7.85,2.7)
         draw.line((32,1020,1768,1020),fill='#293746')
         draw.text((32,1038),'A · Claude %98    X · Codex %46    C · Cursor %54     |     Sol sahne ve durum kodu değişir; üç kota göstergesi korunur.',font=font(14),fill='#b7c9d9')
-        draw.text((32,1068),'Örnek veridir; fiziksel LED renk/parlaklık ölçümü değildir. Karakterler resmi sağlayıcı maskotu veya logosu olarak sunulmaz.',font=font(12),fill='#94a9bd')
+        draw.text((32,1068),'Pikseller gönderilen RGB verisidir; fiziksel renk simülasyonu değildir. Başlıklar hedef renktedir. Karakterler özgün Studio uyarlamalarıdır.',font=font(12),fill='#94a9bd')
         image.save(png_path,'PNG',optimize=True)
     if gif_path:
         images=[]
@@ -418,18 +455,21 @@ def product_mascot_artifacts(frames, png_path=None, gif_path=None):
             image=Image.new('RGB',(960,580),'#090f16');draw=ImageDraw.Draw(image)
             draw.text((28,20),'ÜÇ SAĞLAYICI · ÜÇ PİKSEL KARAKTER',font=font(26),fill='#edf5fc')
             draw.text((28,58),'ÖRNEK ÇALIŞMA DURUMLARI · GERÇEK RENDERER · 2 KARE/SN',font=font(12),fill='#94a9bd')
+            draw.text((28,80),profile_note(claude_green_gain),font=font(10),fill='#94a9bd')
             for row,(provider,name) in enumerate(NAMES.items()):
                 y=100+row*145
-                draw.text((28,y),name+' · '+characters[provider],font=font(18),fill=COLORS[provider])
+                draw.text((28,y),name+' · '+characters[provider],font=font(18),fill=DISPLAY_COLORS[provider])
                 draw.rounded_rectangle((24,y+33,936,y+117),12,fill='#05090e',outline='#304152')
                 pixels(draw,frames['mascot:'+provider+':running'][phase],46,y+49,14,4.5)
-            draw.text((28,550),'Sentetik örnekler · Özgün Studio karakterleri · Fiziksel renk ölçümü değildir',font=font(11),fill='#94a9bd')
+            draw.text((28,550),'Sentetik RGB verisi · Başlıklar hedef renktedir · Fiziksel renk simülasyonu veya ölçümü değildir',font=font(11),fill='#94a9bd')
             images.append(image)
         images[0].save(gif_path,'GIF',save_all=True,append_images=images[1:],duration=500,loop=0,disposal=2,optimize=True)
 
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--claude-green-gain',type=green_gain,default=1.0,
+                        help='Claude LED green channel gain, 0 to 1; default 1. Target UI colours stay unchanged.')
     parser.add_argument('--svg',type=Path,default=ROOT/'docs/images/led-layouts.svg')
     parser.add_argument('--html',type=Path)
     parser.add_argument('--png',type=Path)
@@ -440,13 +480,13 @@ def main():
     parser.add_argument('--steps-gif',type=Path)
     parser.add_argument('--product-mascots-png',type=Path)
     parser.add_argument('--product-mascots-gif',type=Path)
-    args=parser.parse_args();frames=fixtures()
-    args.svg.parent.mkdir(parents=True,exist_ok=True);args.svg.write_text(svg_sheet(frames),encoding='utf-8')
+    args=parser.parse_args();profile={'claude_green_gain':args.claude_green_gain};frames=fixtures(**profile)
+    args.svg.parent.mkdir(parents=True,exist_ok=True);args.svg.write_text(svg_sheet(frames,**profile),encoding='utf-8')
     print(args.svg)
     if args.html:
-        args.html.parent.mkdir(parents=True,exist_ok=True);args.html.write_text(html_preview(frames),encoding='utf-8');print(args.html)
+        args.html.parent.mkdir(parents=True,exist_ok=True);args.html.write_text(html_preview(frames,**profile),encoding='utf-8');print(args.html)
     if args.png:
-        args.png.parent.mkdir(parents=True,exist_ok=True);png_sheet(frames,args.png);print(args.png)
+        args.png.parent.mkdir(parents=True,exist_ok=True);png_sheet(frames,args.png,**profile);print(args.png)
     if args.gif:
         args.gif.parent.mkdir(parents=True,exist_ok=True);gif_matrix(frames,args.gif);print(args.gif)
     if args.scroll_gif:
@@ -454,15 +494,15 @@ def main():
     if args.mascot_png or args.mascot_gif:
         for path in (args.mascot_png,args.mascot_gif):
             if path:path.parent.mkdir(parents=True,exist_ok=True)
-        mascot_artifacts(frames,args.mascot_png,args.mascot_gif)
+        mascot_artifacts(frames,args.mascot_png,args.mascot_gif,**profile)
         for path in (args.mascot_png,args.mascot_gif):
             if path:print(path)
     if args.steps_gif:
-        args.steps_gif.parent.mkdir(parents=True,exist_ok=True);gif_work_steps(frames,args.steps_gif);print(args.steps_gif)
+        args.steps_gif.parent.mkdir(parents=True,exist_ok=True);gif_work_steps(frames,args.steps_gif,**profile);print(args.steps_gif)
     if args.product_mascots_png or args.product_mascots_gif:
         for path in (args.product_mascots_png,args.product_mascots_gif):
             if path:path.parent.mkdir(parents=True,exist_ok=True)
-        product_mascot_artifacts(frames,args.product_mascots_png,args.product_mascots_gif)
+        product_mascot_artifacts(frames,args.product_mascots_png,args.product_mascots_gif,**profile)
         for path in (args.product_mascots_png,args.product_mascots_gif):
             if path:print(path)
 

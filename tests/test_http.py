@@ -64,6 +64,17 @@ class LocalHTTPTests(unittest.TestCase):
         self.assertEqual(status,200)
         self.assertEqual(data['accounts'][0]['phase'],'idle')
 
+    def test_color_balance_is_validated_and_queued_as_a_partial_preference(self):
+        headers={'Origin':self.url,'Content-Type':'application/json'}
+        status,_=self.request('/api/settings','POST',headers,{'claude_green_gain':.29})
+        self.assertEqual(status,202)
+        self.assertEqual(self.server.application.requests[-1],('settings',{'settings':{'claude_green_gain':.29}}))
+        before=len(self.server.application.requests)
+        for invalid in (True,None,'0.29',-.01,1.01,[],10**1000):
+            status,_=self.request('/api/settings','POST',headers,{'claude_green_gain':invalid})
+            self.assertEqual(status,400)
+        self.assertEqual(len(self.server.application.requests),before)
+
     def test_foreign_host_rejected(self):
         status,_=self.request('/api/status',headers={'Host':'evil.example'})
         self.assertEqual(status,403)

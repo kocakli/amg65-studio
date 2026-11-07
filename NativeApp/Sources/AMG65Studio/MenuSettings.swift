@@ -10,11 +10,13 @@ struct MenuDisplaySettings:Codable,Equatable {
     var activityEnabled=true
     var mascotEnabled=false
     var trackedProvider="all"
+    var claudeGreenGain=1.0
     enum CodingKeys:String,CodingKey {
         case brightness,text
         case displayMode="display_mode",textColor="text_color",textEffect="text_effect",activityEnabled="activity_enabled"
         case mascotEnabled="mascot_enabled"
         case trackedProvider="tracked_provider"
+        case claudeGreenGain="claude_green_gain"
     }
     private enum LegacyCodingKeys:String,CodingKey { case claudeMascot="claude_mascot" }
     init() {}
@@ -34,11 +36,13 @@ struct MenuDisplaySettings:Codable,Equatable {
             if legacy.contains(.claudeMascot) { mascotEnabled=try legacy.decode(Bool.self,forKey:.claudeMascot) }
         }
         if values.contains(.trackedProvider) { trackedProvider=try values.decode(String.self,forKey:.trackedProvider) }
+        if values.contains(.claudeGreenGain) { claudeGreenGain=try values.decode(Double.self,forKey:.claudeGreenGain) }
     }
     var valid:Bool {
         ["overview","rotate","text"].contains(displayMode) && brightness.isFinite && (0...1).contains(brightness)
         && ["none","scan","breathe","matrix","scroll"].contains(textEffect)
         && ["all","claude","codex","cursor"].contains(trackedProvider)
+        && claudeGreenGain.isFinite && (0...1).contains(claudeGreenGain)
         && text.utf8.count<=64 && text.unicodeScalars.allSatisfy{(32...126).contains($0.value)}
         && textColor.range(of:#"^#[0-9a-fA-F]{6}$"#,options:.regularExpression) != nil
     }

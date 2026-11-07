@@ -89,6 +89,28 @@ class ConfigurationTests(unittest.TestCase):
         for provider in ('other',None,True,1,[]):
             with self.assertRaises(ValueError):settings_patch({'tracked_provider':provider})
 
+    def test_claude_color_balance_has_neutral_default_and_strict_bounds(self):
+        from configuration import DEFAULTS
+        from renderer import DEFAULT_CLAUDE_GREEN_GAIN
+        self.assertEqual(DEFAULTS['claude_green_gain'],1.0)
+        self.assertEqual(DEFAULTS['claude_green_gain'],DEFAULT_CLAUDE_GREEN_GAIN)
+        for gain in (0,.29,1):
+            self.assertEqual(settings_patch({'claude_green_gain':gain}),{'claude_green_gain':gain})
+        for gain in (True,False,None,'0.29',[],float('nan'),float('inf'),-.01,1.01,10**1000):
+            with self.assertRaises(ValueError):settings_patch({'claude_green_gain':gain})
+
+    def test_color_balance_survives_restart_without_changing_other_preferences(self):
+        with tempfile.TemporaryDirectory() as directory,patch('app.UsageAdapter') as adapter:
+            adapter.return_value.snapshot.return_value={'providers':[]}
+            app=Application(directory,no_device=True)
+            self.assertEqual(app.settings['claude_green_gain'],1.0)
+            app.settings.update(settings_patch({'claude_green_gain':.29,'brightness':1,'tracked_provider':'claude'}))
+            app.save_settings()
+            restored=Application(directory,no_device=True)
+            for key in ('claude_green_gain','brightness','tracked_provider'):
+                self.assertEqual(restored.settings[key],app.settings[key])
+            self.assertEqual(restored.state['matrix']['claude_green_gain'],.29)
+
 
 class OwnershipTests(unittest.TestCase):
     def make_app(self,path):
@@ -161,6 +183,33 @@ class OwnershipTests(unittest.TestCase):
 
 
 class MascotWorkerTests(unittest.TestCase):
+    def test_saved_balance_reaches_activity_overview_focused_and_rotating_views(self):
+        import time
+        from renderer import render_activity,render_mascot,render_overview,render_detail,render_text
+        providers=[{'id':p,'remaining_percent':v} for p,v in (('claude',98),('codex',46),('cursor',54))]
+        cases=[('activity',True,'overview','claude',0),('activity',False,'overview','claude',0),
+               ('overview',False,'overview','all',0),('claude',False,'overview','claude',0),
+               ('claude',False,'rotate','all',12),('text',False,'text','all',0)]
+        for view,mascot,mode,target,tick in cases:
+            with self.subTest(view=view,mascot=mascot,mode=mode),tempfile.TemporaryDirectory() as directory, \
+                 patch('app.UsageAdapter') as adapter,patch('app.ActivityCollector') as collector:
+                adapter.return_value.snapshot.return_value={'providers':providers}
+                row={'provider':'claude','state':'running','summary':'working','expires_at':time.time()+60}
+                collector.return_value.snapshot.return_value={'providers':[row] if view=='activity' else []}
+                app=Application(directory,no_device=True)
+                app.settings.update(mascot_enabled=mascot,tracked_provider=target,display_mode=mode,
+                                    brightness=1,claude_green_gain=.29,text='TEXT',text_color='#fe5a00')
+                app.quit=Mock();app.quit.is_set.side_effect=[False,True]
+                with patch('app.time.monotonic',side_effect=[0,tick]):app.run()
+                state=app.snapshot()
+                if view=='activity':expected=(render_mascot if mascot else render_activity)(row,state,1,0,claude_green_gain=.29)
+                elif view=='overview':expected=render_overview(state,1,claude_green_gain=.29)
+                elif view=='text':expected=render_text('TEXT','#fe5a00',1,0)
+                else:expected=render_detail(providers[0],1,claude_green_gain=.29)
+                self.assertEqual(state['matrix']['pixels'],expected)
+                self.assertEqual(state['matrix']['view'],view)
+                self.assertEqual(state['matrix']['claude_green_gain'],.29)
+
     def test_live_display_switch_routes_each_selected_product_without_text_effects(self):
         import time
         from renderer import render_activity,render_mascot

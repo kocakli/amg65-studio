@@ -106,13 +106,16 @@ Adafruit, LED’de kırmızıya yüksek miktarda yeşil eklenince amaçlanan tur
 | Kullanım | Değer / yaklaşım | Statü |
 | --- | --- | --- |
 | Claude web/native | `#FE5A00` | Studio arayüzünün canlı turuncusu; resmi marka referansı `#D97757` değerinden ayrıdır. |
-| Claude fiziksel LED | `(254, 90, 0)` | Kullanıcının seçtiği 1 numaralı turuncu; algılanan ton cihazda değerlendirilir. |
+| Claude hedef rengi | `DISPLAY_COLORS`: `(254, 90, 0)` / `#FE5A00` | Kullanıcının seçtiği 1 numaralı turuncu; arayüz hedefi korunur. |
+| Claude kalibre gönderim | `claude_green_gain=0,29` için yaklaşık `(254, 26, 0)` | Kullanıcıya özel yeşil azaltma; herkese açık varsayılan 1,0 nötrdür. |
 | Codex fiziksel LED | Mevcut mint `(123, 220, 176)` başlangıç adayı | Studio’nun ayırt etme paleti; resmi OpenAI renk standardı iddiası yok. |
 | Cursor fiziksel LED | Mevcut mavi `(134, 190, 248)` başlangıç adayı | Studio paleti; resmi Cursor marka rengi iddiası yok. |
 | ASK/INPUT / ERROR | Amber + `!/?` / kırmızı + çapraz | Renk, sözcük ve şekil birlikte. |
 | Bilinmeyen | Nötr gri + `--` | Sıfır veya başarı görünümüyle karıştırılmaz. |
 
-Ölçüm olmadan bütün renklere sabit bir gamma üssü uygulamayın. Donanım zaten dönüştürüyor olabilir; ikinci dönüşüm düşük seviyeleri aşırı karartabilir. Önce ayrı LED paleti, sonra aynı parlaklık çarpanıyla tutarlı üretim kullanılabilir. Örneğin `(254,90,0)` ve 0,4 çarpanı yuvarlandığında `(102,36,0)` gönderilir. Kullanıcının global parlaklık tercihi korunur. Bu sadece sayısal hesap, algısal renk eşitliği değildir.
+Ölçüm olmadan bütün renklere sabit bir gamma üssü uygulamayın. Donanım zaten dönüştürüyor olabilir; ikinci dönüşüm düşük seviyeleri aşırı karartabilir. Güncel yaklaşım, yalnız Claude için yeşil kanalını kullanıcı tercihiyle azaltır: **`claude_green_gain` 0–1, adım 0,01, herkese açık varsayılan 1,0**. Arayüz ve `DISPLAY_COLORS` hedefi `(254,90,0)` olarak kalır. Nötr 1,0 ayarında 0,4 parlaklık `(102,36,0)` üretir; bu kurulumun 0,29 ayarında tam parlaklık öncesi renk yaklaşık `(254,26,0)`, aynı 0,4 parlaklıkta yaklaşık `(102,10,0)` olur. Diğer sağlayıcılar, genel parlaklık tercihi ve global gamma değiştirilmez.
+
+Kullanıcı fiziksel şeritte yeşil/sarı baskınlığı gözlemledi ve 0,29 ayarını seçtiği turuncuya daha yakın buldu. Bu, kullanıcı gözlemidir; kolorimetre ölçümü, tam marka eşleşmesi veya bütün AMG65’ler için evrensel ayar değildir. **Claude renk dengesi** sürgüsündeki daha kırmızı uç yeşili azaltır; daha sarı uç nötr hedefe yaklaşır. Panelin önizlemesi LED için ayarlanan RGB’yi gösterir ve fiziksel tonun farklı olabileceğini belirtir. Not, varsa `matrix.claude_green_gain` kare metaverisini izler; böylece henüz yeni kareye geçilmeden güncellenen ayarla eski görüntü karıştırılmaz. Eski API’de geçerli ayar alanı kullanılır.
 
 Karşılaştırma üç sağlayıcının eşit sayısal parlaklıkta eşit parlak göründüğünü varsaymamalıdır. Düşük seviyede kanal yuvarlaması ve difüzör etkisi tonu değiştirebilir. 0,2 / 0,4 / 0,7 gibi birkaç sabit seviye, gündüz ve loş ortamda gözlenmeli; sonunda kullanılan LED paleti ile parlaklık kaydedilmelidir. Bunlar test noktalarıdır, zorunlu kullanıcı ayarları değildir.
 

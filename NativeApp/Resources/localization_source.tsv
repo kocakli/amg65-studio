@@ -220,3 +220,7 @@ USB denetimi yerel sürücüde	Native driver controls USB	El controlador nativo 
 Canlı LED kapalı	Live LED display is off	La vista LED en vivo está desactivada	实时 LED 显示已关闭	ライブ LED 表示はオフです
 LED aktarımı etkin	LED transfer is active	Transferencia LED activa	LED 传输正在进行	LED 転送中
 USB durumu bilinmiyor	USB status unknown	Estado USB desconocido	USB 状态未知	USB の状態は不明です
+Claude renk dengesi	Claude color balance	Balance de color de Claude	Claude 色彩平衡	Claude のカラーバランス
+Daha kırmızı	More red	Más rojo	更红	赤を強く
+Daha sarı	More yellow	Más amarillo	更黄	黄を強く
+LED’deki turuncuyu seçtiğiniz tona yaklaştırır.	Adjusts the LED orange toward your chosen shade.	Ajusta el naranja del LED hacia el tono que elegiste.	将 LED 的橙色调整得更接近您选择的色调。	LED のオレンジを選んだ色合いに近づけます。

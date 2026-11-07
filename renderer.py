@@ -8,10 +8,10 @@ from __future__ import annotations
 import math
 
 WIDTH, HEIGHT = 63, 5
-# LED-specific colours, rather than a measured monitor-to-strip colour match.
-# Claude uses the user's selected #FE5A00 orange (palette option 1).
-# User brightness still scales every channel, including zero.
-COLORS = {"claude": (254, 90, 0), "codex": (123, 220, 176), "cursor": (134, 190, 248)}
+# Target colours are independent of each user's saved LED channel balance.
+DISPLAY_COLORS = {"claude": (254, 90, 0), "codex": (123, 220, 176), "cursor": (134, 190, 248)}
+COLORS = dict(DISPLAY_COLORS)
+DEFAULT_CLAUDE_GREEN_GAIN = 1.0
 PROVIDERS = (("claude", "A"), ("codex", "X"), ("cursor", "C"))
 UNKNOWN = (132, 144, 157)
 BLACK = (0, 0, 0)
@@ -65,9 +65,22 @@ def _value(provider):
     return float(value) if math.isfinite(value) and 0 <= value <= 100 else None
 
 
-def _color(provider, brightness):
+def _green_gain(value):
+    if type(value) not in (int,float) or not 0<=value<=1 or not math.isfinite(value):
+        raise ValueError('claude_green_gain must be a finite number between 0 and 1')
+    return value
+
+
+def _provider_rgb(provider_id, claude_green_gain):
+    rgb=COLORS.get(provider_id,UNKNOWN)
+    # A per-user, Claude-only balance before common brightness. Neither the
+    # target UI accent nor the attention, error and custom-text colours change.
+    return (rgb[0],round(rgb[1]*claude_green_gain),rgb[2]) if provider_id=='claude' else rgb
+
+
+def _color(provider, brightness, claude_green_gain):
     factor = brightness * (0.45 if provider.get("stale") else 1.0)
-    rgb = COLORS.get(provider.get("id"), UNKNOWN) if _value(provider) is not None else UNKNOWN
+    rgb = _provider_rgb(provider.get("id"),claude_green_gain) if _value(provider) is not None else UNKNOWN
     return tuple(round(min(254, channel) * factor) for channel in rgb)
 
 
@@ -110,11 +123,11 @@ STATE_ICONS = {
 }
 
 
-def _bars(pixels, providers, brightness):
+def _bars(pixels, providers, brightness, claude_green_gain):
     for index, provider in enumerate(providers):
         x = 57 + index * 2
         value = _value(provider)
-        color = _color(provider, brightness)
+        color = _color(provider, brightness, claude_green_gain)
         if value is None:
             pixels[2 * WIDTH + x] = color
             continue
@@ -125,13 +138,14 @@ def _bars(pixels, providers, brightness):
             pixels[y * WIDTH + x] = color if y >= 5 - height else tuple(v // 10 for v in color)
 
 
-def render_overview(snapshot: dict, brightness: float = 0.4) -> list[tuple[int, int, int]]:
+def render_overview(snapshot: dict, brightness: float = 0.4, *, claude_green_gain=DEFAULT_CLAUDE_GREEN_GAIN) -> list[tuple[int, int, int]]:
     """Three aligned quota cells in 56 columns, with three right-side meters.
 
     Unknown values are ``--``. Stale values are dimmed and marked with a small
     amber pixel at the end of their cell. No percentages are inferred from errors.
     """
     brightness = _brightness(brightness)
+    claude_green_gain = _green_gain(claude_green_gain)
     pixels = [BLACK] * (WIDTH * HEIGHT)
     entries = {p.get("id"): p for p in snapshot.get("providers", []) if isinstance(p, dict)}
     providers = []
@@ -141,21 +155,22 @@ def render_overview(snapshot: dict, brightness: float = 0.4) -> list[tuple[int, 
         value = _value(provider)
         text = str(round(value)) if value is not None else "--"
         left = index * 19
-        color = _color(provider, brightness)
+        color = _color(provider, brightness, claude_green_gain)
         _text(pixels, letter, left, color, left + 3)
         _text(pixels, text, left + 16 - text_width(text), color, left + 16)
         if provider.get("stale"):
             pixels[min(55, left + 17)] = tuple(round(v * brightness) for v in ATTENTION)
-    _bars(pixels, providers, brightness)
+    _bars(pixels, providers, brightness, claude_green_gain)
     return pixels
 
 
-def render_detail(provider: dict, brightness: float = 0.4) -> list[tuple[int, int, int]]:
+def render_detail(provider: dict, brightness: float = 0.4, *, claude_green_gain=DEFAULT_CLAUDE_GREEN_GAIN) -> list[tuple[int, int, int]]:
     """Show a provider's full name and its selected remaining percentage."""
     brightness = _brightness(brightness)
+    claude_green_gain = _green_gain(claude_green_gain)
     pixels = [BLACK] * (WIDTH * HEIGHT)
     label = {"claude": "CLAUDE", "codex": "CODEX", "cursor": "CURSOR"}.get(provider.get("id"), "?")
-    color = _color(provider, brightness)
+    color = _color(provider, brightness, claude_green_gain)
     _text(pixels, label, 1, color)
     value = _value(provider)
     text = "--" if value is None else f"{round(value)}%"
@@ -308,18 +323,19 @@ def select_activity(activity, elapsed=0, now=None, *, provider='all'):
     return rows[int(max(0,elapsed)//4)%len(rows)]
 
 
-def render_activity(activity, snapshot, brightness=0.4, elapsed=0):
+def render_activity(activity, snapshot, brightness=0.4, elapsed=0, *, claude_green_gain=DEFAULT_CLAUDE_GREEN_GAIN):
     """A distinct state icon, full provider name, state code and three quota rails.
 
     No prompt, command or filename is placed on the physical display. ASCII state
     codes remain legible in the device's five rows, regardless of UI language.
     """
     brightness=_brightness(brightness)
+    claude_green_gain=_green_gain(claude_green_gain)
     pixels=[BLACK]*(WIDTH*HEIGHT)
     provider=activity.get('provider')
     state=activity.get('state')
     if provider not in COLORS or state not in ACTIVITY_LABELS: return pixels
-    color=tuple(round(min(254,v)*brightness) for v in COLORS[provider])
+    color=tuple(round(v*brightness) for v in _provider_rgb(provider,claude_green_gain))
     label={'codex':'CODEX','claude':'CLAUDE','cursor':'CURSOR'}[provider]
     _text(pixels,label,7,color,30)
     _text(pixels,activity_label(activity),32,color,53)
@@ -332,10 +348,10 @@ def render_activity(activity, snapshot, brightness=0.4, elapsed=0):
             pixels[y*WIDTH+x]=color if index==active else tuple(v//5 for v in color)
         pixels[2*WIDTH+2]=color
     else:
-        accent=ATTENTION if state in ('waiting_approval','waiting_input') else ERROR if state=='error' else COLORS[provider]
+        accent=ATTENTION if state in ('waiting_approval','waiting_input') else ERROR if state=='error' else _provider_rgb(provider,claude_green_gain)
         _icon(pixels,STATE_ICONS[state],0,tuple(round(v*brightness) for v in accent))
     entries={row.get('id'):row for row in snapshot.get('providers',[]) if isinstance(row,dict)}
-    _bars(pixels,[entries.get(p,{'id':p}) for p,_ in PROVIDERS],brightness)
+    _bars(pixels,[entries.get(p,{'id':p}) for p,_ in PROVIDERS],brightness,claude_green_gain)
     return pixels
 
 
@@ -352,23 +368,25 @@ MASCOT_SPRITES = {'claude':CLAUDE_SPRITE,'codex':CODEX_SPRITE,'cursor':CURSOR_SP
 MASCOT_LETTERS = dict(PROVIDERS)
 
 
-def render_mascot(activity, snapshot, brightness=0.4, elapsed=0):
+def render_mascot(activity, snapshot, brightness=0.4, elapsed=0, *, claude_green_gain=DEFAULT_CLAUDE_GREEN_GAIN):
     """An observed tool state as its actor, a state word and three quota rails.
 
     RUN takes twelve visual steps to walk out and back. Waiting/error poses are
     stationary; no guessed state, task text or permission decision enters here.
     """
     brightness=_brightness(brightness)
+    claude_green_gain=_green_gain(claude_green_gain)
     provider=activity.get('provider')
     if provider not in MASCOT_SPRITES or activity.get('state') not in ACTIVITY_LABELS:
-        return render_activity(activity,snapshot,brightness,elapsed)
+        return render_activity(activity,snapshot,brightness,elapsed,claude_green_gain=claude_green_gain)
     pixels=[BLACK]*(WIDTH*HEIGHT)
     state=activity['state']
     step=int(max(0,elapsed)*2)
     rows=list(MASCOT_SPRITES[provider])
     x=3
     facing=0
-    color=tuple(round(channel*brightness) for channel in COLORS[provider])
+    provider_color=tuple(round(channel*brightness) for channel in _provider_rgb(provider,claude_green_gain))
+    color=provider_color
     if state=='running':
         travel=step%12
         x=1+2*(travel if travel<=6 else 12-travel)
@@ -394,20 +412,20 @@ def render_mascot(activity, snapshot, brightness=0.4, elapsed=0):
         rows=[row[::-1] for row in rows]
     _icon(pixels,rows,x,color)
     if state!='running':
-        accent=ATTENTION if state in ('waiting_approval','waiting_input') else ERROR if state=='error' else COLORS[provider]
+        accent=ATTENTION if state in ('waiting_approval','waiting_input') else ERROR if state=='error' else _provider_rgb(provider,claude_green_gain)
         _icon(pixels,STATE_ICONS[state],18,tuple(round(v*brightness) for v in accent))
     # The A/X/C mapping remains identical to the overview legend. The longest state,
     # INPUT, ends at column 51; the sprite never reaches the label at column 26.
-    _text(pixels,MASCOT_LETTERS[provider],26,tuple(round(v*brightness) for v in COLORS[provider]),29)
-    state_color=tuple(round(v*brightness) for v in ERROR) if state=='error' else tuple(round(v*brightness) for v in COLORS[provider])
+    _text(pixels,MASCOT_LETTERS[provider],26,provider_color,29)
+    state_color=tuple(round(v*brightness) for v in ERROR) if state=='error' else provider_color
     _text(pixels,activity_label(activity),32,state_color,53)
     entries={row.get('id'):row for row in snapshot.get('providers',[]) if isinstance(row,dict)}
-    _bars(pixels,[entries.get(p,{'id':p}) for p,_ in PROVIDERS],brightness)
+    _bars(pixels,[entries.get(p,{'id':p}) for p,_ in PROVIDERS],brightness,claude_green_gain)
     return pixels
 
 
-def render_claude_mascot(activity, snapshot, brightness=0.4, elapsed=0):
+def render_claude_mascot(activity, snapshot, brightness=0.4, elapsed=0, *, claude_green_gain=DEFAULT_CLAUDE_GREEN_GAIN):
     """Compatibility entry point for older Claude-only preview integrations."""
     if activity.get('provider')!='claude':
-        return render_activity(activity,snapshot,brightness,elapsed)
-    return render_mascot(activity,snapshot,brightness,elapsed)
+        return render_activity(activity,snapshot,brightness,elapsed,claude_green_gain=claude_green_gain)
+    return render_mascot(activity,snapshot,brightness,elapsed,claude_green_gain=claude_green_gain)

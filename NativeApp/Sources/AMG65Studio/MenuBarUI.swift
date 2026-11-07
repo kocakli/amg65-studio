@@ -630,6 +630,7 @@ struct StudioMenuPopover:View {
 
 private struct MenuDisplayControls:View {
     @ObservedObject var model:MenuDisplayModel
+    @Environment(\.locale) private var locale
     let offline:Bool
     let apply:()->Void
     var body:some View {
@@ -676,6 +677,22 @@ private struct MenuDisplayControls:View {
             VStack(alignment:.leading,spacing:7) {
                 HStack { Text(L("Parlaklık"));Spacer();Text(model.draft.brightness.formatted(.percent.precision(.fractionLength(0)))).monospacedDigit() }
                 Slider(value:$model.draft.brightness,in:0...1,step:0.05)
+            }
+            VStack(alignment:.leading,spacing:7) {
+                HStack {
+                    Text(L("Claude renk dengesi"))
+                    Spacer()
+                    Text(model.draft.claudeGreenGain.formatted(.percent.precision(.fractionLength(0)).locale(locale))).monospacedDigit()
+                }
+                Slider(value:$model.draft.claudeGreenGain,in:0...1,step:0.01)
+                    .accessibilityLabel(L("Claude renk dengesi"))
+                HStack {
+                    Text(L("Daha kırmızı"))
+                    Spacer()
+                    Text(L("Daha sarı"))
+                }.font(.system(size:10)).foregroundStyle(.secondary)
+                Text(L("LED’deki turuncuyu seçtiğiniz tona yaklaştırır."))
+                    .font(.system(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
             }
             Divider()
             Toggle(L("Çalışma ve bekleme durumlarını göster"),isOn:$model.draft.activityEnabled)

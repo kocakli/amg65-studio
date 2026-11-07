@@ -343,3 +343,60 @@ class ProductMascotTests(unittest.TestCase):
             self.assertEqual(render_mascot(dict(row,summary='PRIVATE PATH'),self.snapshot,1),
                              render_mascot(dict(row,summary='PRIVATE PROMPT'),self.snapshot,1))
         self.assertEqual(render_mascot({'provider':'other','state':'running'},self.snapshot,1),[BLACK]*315)
+
+
+class LEDBalanceTests(unittest.TestCase):
+    def setUp(self):
+        self.snapshot={'providers':[{'id':p,'remaining_percent':v} for p,v in
+                                   (('claude',98),('codex',46),('cursor',54))]}
+
+    def test_balance_changes_only_claude_green_in_each_provider_scene_and_its_meter(self):
+        from renderer import render_activity,render_mascot,DISPLAY_COLORS,COLORS
+        original=dict(COLORS)
+        scenes=[lambda gain:render_overview(self.snapshot,1,claude_green_gain=gain),
+                lambda gain:render_detail(self.snapshot['providers'][0],1,claude_green_gain=gain)]
+        for provider in ('claude','codex','cursor'):
+            row={'provider':provider,'state':'running'}
+            scenes.extend([lambda gain,row=row:render_activity(row,self.snapshot,1,claude_green_gain=gain),
+                           lambda gain,row=row:render_mascot(row,self.snapshot,1,claude_green_gain=gain)])
+        for scene in scenes:
+            target,drive=scene(1),scene(.29)
+            changed=[(a,b) for a,b in zip(target,drive) if a!=b]
+            self.assertTrue(changed)
+            for a,b in changed:
+                self.assertEqual((a[0],a[2]),(b[0],b[2]))
+                self.assertEqual(a[2],0)
+                self.assertLess(b[1],a[1])
+            self.assertIn((254,26,0),drive)
+        self.assertEqual(COLORS,original)
+        self.assertEqual(DISPLAY_COLORS['claude'],(254,90,0))
+
+    def test_attention_error_unknown_and_custom_text_keep_their_own_colors(self):
+        from renderer import render_activity,render_mascot,render_text
+        for state in ('waiting_approval','waiting_input','error'):
+            row={'provider':'claude','state':state}
+            for function,columns in ((render_activity,range(5)),(render_mascot,range(18,23))):
+                before=function(row,self.snapshot,1,claude_green_gain=1)
+                after=function(row,self.snapshot,1,claude_green_gain=.29)
+                self.assertEqual([before[y*63+x] for y in range(5) for x in columns],
+                                 [after[y*63+x] for y in range(5) for x in columns])
+        self.assertEqual(render_detail({'id':'claude'},1,claude_green_gain=.29),
+                         render_detail({'id':'claude'},1,claude_green_gain=1))
+        self.assertIn((254,90,0),render_text('TEXT','#fe5a00',1))
+
+    def test_gain_is_bounded_and_applied_before_common_brightness(self):
+        from renderer import render_mascot,render_activity,render_claude_mascot,BLACK
+        row={'provider':'claude','state':'running'}
+        scenes=[lambda gain,b:render_overview(self.snapshot,b,claude_green_gain=gain),
+                lambda gain,b:render_detail(self.snapshot['providers'][0],b,claude_green_gain=gain)]
+        for function in (render_mascot,render_activity,render_claude_mascot):
+            scenes.append(lambda gain,b,function=function:function(row,self.snapshot,b,claude_green_gain=gain))
+        for scene in scenes:
+            for invalid in (True,False,None,'0.29',[],math.nan,math.inf,-.01,1.01,10**1000):
+                with self.assertRaises(ValueError):scene(invalid,1)
+            for gain in (0,.29,1):
+                self.assertEqual(scene(gain,0),[BLACK]*315)
+                frame=scene(gain,.4)
+                self.assertEqual(len(frame),315)
+                self.assertTrue(all(type(v) is int and 0<=v<=254 for pixel in frame for v in pixel))
+            self.assertIn((102,10,0),scene(.29,.4))

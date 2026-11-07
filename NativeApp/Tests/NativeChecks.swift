@@ -240,6 +240,30 @@ import Darwin
         check(legacySettings.textEffect=="none" && legacySettings.text=="DRAFT" && legacySettings.valid,"legacy bridge settings default missing text effect to none")
         check(!legacySettings.mascotEnabled && !initialSettings.mascotEnabled,"mascot defaults off for new and legacy settings")
         check(legacySettings.trackedProvider=="all" && initialSettings.trackedProvider=="all","provider focus defaults to automatic for new and legacy settings")
+        check(legacySettings.claudeGreenGain==1 && initialSettings.claudeGreenGain==1,"Claude LED calibration defaults to no correction for new and legacy settings")
+        for gain in [0.0,0.29,1.0] {
+            var settings=initialSettings;settings.claudeGreenGain=gain
+            let encoded=try JSONEncoder().encode(settings)
+            let decoded=try JSONDecoder().decode(MenuDisplaySettings.self,from:encoded)
+            check(decoded==settings && decoded.valid,"Claude LED calibration round trip: \(gain)")
+        }
+        var malformedGain=(try JSONSerialization.jsonObject(with:JSONEncoder().encode(initialSettings))) as! [String:Any]
+        for value:Any in [true,false,"0.29",NSNull()] {
+            malformedGain["claude_green_gain"]=value
+            var rejected=false
+            do { _ = try JSONDecoder().decode(MenuDisplaySettings.self,from:JSONSerialization.data(withJSONObject:malformedGain)) }
+            catch { rejected=true }
+            check(rejected,"Claude LED calibration rejects boolean, string or null")
+        }
+        for gain in [-0.01,1.01,Double.nan,Double.infinity,-Double.infinity] {
+            var settings=initialSettings;settings.claudeGreenGain=gain
+            check(!settings.valid,"out-of-range or nonfinite Claude LED calibration is invalid")
+        }
+        for gain in [-0.01,1.01] {
+            malformedGain["claude_green_gain"]=gain
+            let decoded=try JSONDecoder().decode(MenuDisplaySettings.self,from:JSONSerialization.data(withJSONObject:malformedGain))
+            check(!decoded.valid,"out-of-range Claude LED calibration from API cannot replace valid settings")
+        }
         for provider in ["all","claude","codex","cursor"] {
             var settings=initialSettings;settings.trackedProvider=provider
             let decoded=try JSONDecoder().decode(MenuDisplaySettings.self,from:JSONEncoder().encode(settings))
@@ -344,6 +368,18 @@ import Darwin
         check(display.draft==focusAck && !display.dirty,"discard restores acknowledged provider preference")
         display.draft.trackedProvider="all"
         check(display.draft.displayMode=="text" && display.draft.text=="FOCUS DRAFT","returning to Automatic restores stored general view and text")
+        let beforeBalance=settingsRequests
+        display.draft.claudeGreenGain=0.29;display.draft.text="color draft"
+        display.receive(displaySnapshot(focusAck))
+        check(display.draft.claudeGreenGain==0.29 && display.draft.text=="color draft" && display.dirty && settingsRequests==beforeBalance,"calibration and text remain local drafts through polling")
+        await display.save()
+        check(sentSettings["claude_green_gain"] as? Double==0.29 && sentSettings["text"] as? String=="COLOR DRAFT","Apply submits personal calibration with preserved text")
+        var balanceAck=display.draft;balanceAck.text="COLOR DRAFT"
+        display.draft.claudeGreenGain=0.4;display.draft.text="new color draft"
+        display.receive(displaySnapshot(balanceAck))
+        check(display.draft.claudeGreenGain==0.4 && display.draft.text=="new color draft" && display.dirty,"late calibration acknowledgement preserves newer gain and text edits")
+        display.discard()
+        check(display.draft==balanceAck && display.draft.claudeGreenGain==0.29 && !display.dirty,"discard restores acknowledged personal calibration")
         var invalid=initialSettings;invalid.text="非ASCII"
         check(!invalid.valid,"unsupported LED text rejected before submission")
         invalid=initialSettings;invalid.brightness=Double.nan
@@ -357,6 +393,9 @@ import Darwin
         check(!invalid.valid,"unknown provider focus rejected")
         display.draft=invalid;await display.save()
         check(settingsRequests==beforeInvalid,"invalid provider focus never submits settings")
+        invalid=initialSettings;invalid.claudeGreenGain=Double.infinity
+        display.draft=invalid;await display.save()
+        check(settingsRequests==beforeInvalid,"invalid calibration never submits settings")
         check(MenuAccountsModel.authorizationURL("https://auth.openai.com/codex/device",provider:"codex") != nil,"Codex device sign-in URL accepted")
         check(MenuAccountsModel.authorizationURL("https://claude.ai/oauth/authorize?state=test",provider:"claude") != nil,"Claude provider authorization URL accepted")
         check(MenuAccountsModel.authorizationURL("https://claude.com/cai/oauth/authorize?code_challenge_method=S256",provider:"claude") != nil,"modern Claude direct-auth URL accepted")
