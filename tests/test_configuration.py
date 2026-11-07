@@ -31,6 +31,27 @@ class ConfigurationTests(unittest.TestCase):
     def test_unknown_fields_rejected(self):
         with self.assertRaises(ValueError): settings_patch({'firmware':'anything'})
 
+    def test_text_effect_is_opt_in_and_bounded(self):
+        from configuration import DEFAULTS
+        self.assertEqual(DEFAULTS['text_effect'],'none')
+        for effect in ('none','scan','breathe','matrix'):
+            self.assertEqual(settings_patch({'text_effect':effect}),{'text_effect':effect})
+        for effect in (True,None,'rainbow','<script>'):
+            with self.assertRaises(ValueError):settings_patch({'text_effect':effect})
+
+    def test_old_saved_settings_use_plain_text_and_effect_survives_restart(self):
+        with tempfile.TemporaryDirectory() as directory:
+            saved=Path(directory)/'settings.json'
+            saved.write_text(json.dumps({'display_mode':'text','text':'HELLO'}))
+            with patch('app.UsageAdapter'):
+                app=Application(directory,no_device=True)
+                self.assertEqual(app.settings['text_effect'],'none')
+                app.settings.update(settings_patch({'text_effect':'matrix'}))
+                app.save_settings()
+                restored=Application(directory,no_device=True)
+                self.assertEqual(restored.settings['text_effect'],'matrix')
+                self.assertEqual(restored.settings['text'],'HELLO')
+
 
 class OwnershipTests(unittest.TestCase):
     def make_app(self,path):

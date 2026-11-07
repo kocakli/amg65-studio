@@ -3,7 +3,7 @@ import math
 import re
 
 DEFAULTS = {'display_mode':'overview','brightness':0.4,'text':'AMG65 STUDIO',
-            'text_color':'#7bdcb0','activity_enabled':True}
+            'text_color':'#7bdcb0','text_effect':'none','activity_enabled':True}
 LIGHTING = {'mode':1,'color':'#7bdcb0','brightness':3,'speed':3,'colorful':False}
 
 def color(value):
@@ -17,6 +17,8 @@ def settings_patch(value):
     result = dict(value)
     if 'display_mode' in value and value['display_mode'] not in ('overview','rotate','text'):
         raise ValueError('Geçersiz ekran modu.')
+    if 'text_effect' in value and value['text_effect'] not in ('none','scan','breathe','matrix'):
+        raise ValueError('Geçersiz yazı efekti.')
     if 'brightness' in value:
         b=value['brightness']
         if type(b) not in (int,float) or not math.isfinite(b) or not 0<=b<=1:

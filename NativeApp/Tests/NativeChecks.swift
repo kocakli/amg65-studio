@@ -39,6 +39,35 @@ import Darwin
         check(Array(clock[2].bytes.prefix(11))==[0,1,0x5A,26,11,7,12,34,56,0,6],"Gregorian RTC and Saturday mapping")
         check(!clock.contains{$0.isData},"RTC does not request unsupported checksum")
         check(AMG65Protocol.packet([UInt8](repeating:1,count:100),[-1:7,64:7]).count==64,"packet input bounds")
+        let orange=RGB(r:254,g:92,b:24)
+        check(RGB.parse(hex:"#fe5C18")==orange && RGB.parse(hex:" FE5C18 ")==orange,"HEX accepts six mixed-case digits with optional hash")
+        check(orange.hex=="#FE5C18" && RGB.parse(hex:orange.hex)==orange,"RGB hex round trip")
+        check(RGB.parse(hex:"000000")==RGB.off && RGB.parse(hex:"FFFFFF")==RGB(r:255,g:255,b:255),"RGB range endpoints")
+        check(["#fff","#12345678","0x123456","GG1234","１２３４５６","","#12345","1234567"].allSatisfy{RGB.parse(hex:$0)==nil},"partial, alpha, non-ASCII and malformed HEX rejected")
+        let colorSuite="amg65-color-checks-\(UUID().uuidString)"
+        let colorDefaults=UserDefaults(suiteName:colorSuite)!
+        defer { colorDefaults.removePersistentDomain(forName:colorSuite) }
+        let lighting=LightingModel(defaults:colorDefaults)
+        lighting.settings.colorful=true; lighting.settings.mode=7;lighting.settings.brightness=2
+        lighting.selectColor(orange)
+        check(lighting.selectedColor==orange && !lighting.settings.colorful,"single color selection clears multicolor flag")
+        check(lighting.settings.mode==7 && lighting.settings.brightness==2,"color selection preserves chosen effect and brightness")
+        check(lighting.applied==nil && lighting.lastResult==nil && !lighting.applying && lighting.hasUnappliedChanges,"color edits remain unapplied without hardware work")
+        check(LightingModel(defaults:colorDefaults).settings==lighting.settings,"color draft persists independently of apply")
+        let lightingPacket=AMG65Protocol.lighting(lighting.settings).first{$0.isData}!.bytes
+        check(Array(lightingPacket[1...3])==[254,92,24] && lightingPacket[8]==0,"chosen RGB encodes with single color flag")
+        lighting.settings.colorful=true
+        check(AMG65Protocol.lighting(lighting.settings).first{$0.isData}!.bytes[8]==1,"explicit multicolor setting retained in protocol")
+        lighting.useStaticColor()
+        check(lighting.settings.mode==1 && !lighting.settings.colorful && lighting.selectedColor==orange && lighting.applied==nil,"explicit static shortcut changes only draft mode and color flag")
+        let brush=CustomLightModel(preview:[:],defaults:colorDefaults)
+        brush.erasing=true;brush.selectBrush(orange)
+        check(brush.brush==orange && !brush.erasing && brush.colors.isEmpty && brush.appliedColors==nil,"brush selection exits eraser without painting or applying")
+        let firstKey=KeyboardLayout.litKeys[0]
+        brush.paint(firstKey.slot)
+        check(brush.colors[firstKey.slot]==orange && brush.appliedColors==nil,"inline brush paints a draft key only")
+        brush.fillAll()
+        check(brush.colors.count==KeyboardLayout.litKeys.count && brush.colors.values.allSatisfy{$0==orange},"fill all uses selected inline brush")
         let map=AMG65Protocol.keymap([-1:[1],127:[2],49:KeyAction.key(modifiers:8,code:4).slot])
         let table=map.filter{$0.isData}.flatMap{$0.bytes}
         check(table.count==512 && table[510]==0xAA && table[511]==0x55,"keymap table trailer")
@@ -101,10 +130,9 @@ import Darwin
         rejected=false
         do { _ = try SharedUSBFault.read(at:shared) } catch { rejected=true }
         check(rejected,"shared marker symlink fails closed")
-        let defaults=UserDefaults.standard,key="customLightBrightness",old=defaults.object(forKey:key)
-        defer { if let old {defaults.set(old,forKey:key)} else {defaults.removeObject(forKey:key)} }
-        defaults.set(-100,forKey:key); check(CustomLightModel(preview:[:]).brightness==1,"negative stored brightness clamped")
-        defaults.set(Int.max,forKey:key); check(CustomLightModel(preview:[:]).brightness==5,"overflowing stored brightness clamped")
+        let key="customLightBrightness"
+        colorDefaults.set(-100,forKey:key); check(CustomLightModel(preview:[:],defaults:colorDefaults).brightness==1,"negative stored brightness clamped")
+        colorDefaults.set(Int.max,forKey:key); check(CustomLightModel(preview:[:],defaults:colorDefaults).brightness==5,"overflowing stored brightness clamped")
         let catalogs=LocalizationCatalog(directory:URL(fileURLWithPath:CommandLine.arguments[1],isDirectory:true))
         let catalogKeys=Set(catalogs.tables["tr"]!.keys)
         check(catalogKeys.count>=219 && LocalizationCatalog.codes.allSatisfy { Set(catalogs.tables[$0]!.keys)==catalogKeys },"five complete local catalogs")
@@ -161,8 +189,10 @@ import Darwin
         check(MenuUsageSnapshot.windowLabel("Fable only",catalog:catalogs,language:"tr")=="Yalnızca Fable","dynamic model-only window localizes")
         check(MenuUsageSnapshot.windowLabel("Team pool",catalog:catalogs,language:"ja")=="チーム共有枠","team pool is not mislabeled personal usage")
         var sentSettings:[String:Any]=[:]
+        var settingsRequests=0
         let display=MenuDisplayModel(send:{ path,data in
             check(path=="api/settings","display uses settings endpoint for unchanged enable state")
+            settingsRequests += 1
             sentSettings=(try JSONSerialization.jsonObject(with:data)) as! [String:Any]
         })
         func displaySnapshot(_ value:MenuDisplaySettings)->MenuUsageSnapshot {
@@ -171,16 +201,28 @@ import Darwin
             return try! JSONDecoder().decode(MenuUsageSnapshot.self,from:data)
         }
         let initialSettings=MenuDisplaySettings()
+        let legacySettings=try JSONDecoder().decode(MenuDisplaySettings.self,from:Data(##"{"display_mode":"text","brightness":0.4,"text":"DRAFT","text_color":"#ffffff","activity_enabled":true}"##.utf8))
+        check(legacySettings.textEffect=="none" && legacySettings.text=="DRAFT" && legacySettings.valid,"legacy bridge settings default missing text effect to none")
+        for effect in ["none","scan","breathe","matrix"] {
+            var settings=initialSettings;settings.textEffect=effect
+            let encoded=try JSONEncoder().encode(settings)
+            let decoded=try JSONDecoder().decode(MenuDisplaySettings.self,from:encoded)
+            check(decoded==settings && decoded.valid,"supported text effect round trip: \(effect)")
+        }
         display.receive(displaySnapshot(initialSettings))
-        display.draft.text="hello";display.draft.textColor="#ABCDEF"
+        display.draft.text="hello";display.draft.textColor="#ABCDEF";display.draft.textEffect="matrix"
         display.receive(displaySnapshot(initialSettings))
-        check(display.draft.text=="hello" && display.dirty,"polling preserves unsaved display draft")
+        check(display.draft.text=="hello" && display.draft.textEffect=="matrix" && display.dirty && settingsRequests==0,"effect choice and polling preserve text draft without sending")
         await display.save()
         check(sentSettings["text"] as? String=="HELLO" && sentSettings["text_color"] as? String=="#abcdef","display request matches backend canonicalization")
-        display.draft.text="new draft"
+        check(sentSettings["text_effect"] as? String=="matrix","Apply submits selected text effect")
         var ack=initialSettings;ack.text="HELLO";ack.textColor="#abcdef"
         display.receive(displaySnapshot(ack))
-        check(display.draft.text=="new draft" && display.dirty,"late settings acknowledgement preserves newer edit")
+        check(display.dirty && display.draft.textEffect=="matrix","older effect snapshot cannot acknowledge a pending change")
+        display.draft.text="new draft";display.draft.textEffect="breathe"
+        ack.textEffect="matrix"
+        display.receive(displaySnapshot(ack))
+        check(display.draft.text=="new draft" && display.draft.textEffect=="breathe" && display.dirty,"late settings acknowledgement preserves newer text and effect edit")
         display.discard()
         check(display.draft==ack && !display.dirty,"discard restores acknowledged canonical settings")
         display.draft.text="last"
@@ -191,6 +233,11 @@ import Darwin
         check(!invalid.valid,"unsupported LED text rejected before submission")
         invalid=initialSettings;invalid.brightness=Double.nan
         check(!invalid.valid,"nonfinite display brightness rejected")
+        invalid=initialSettings;invalid.textEffect="rain"
+        check(!invalid.valid,"unknown text effect rejected")
+        let beforeInvalid=settingsRequests
+        display.draft=invalid;await display.save()
+        check(settingsRequests==beforeInvalid,"invalid effect never submits settings")
         check(MenuAccountsModel.authorizationURL("https://auth.openai.com/codex/device",provider:"codex") != nil,"Codex device sign-in URL accepted")
         check(MenuAccountsModel.authorizationURL("https://claude.ai/oauth/authorize?state=test",provider:"claude") != nil,"Claude provider authorization URL accepted")
         check(MenuAccountsModel.authorizationURL("https://claude.com/cai/oauth/authorize?code_challenge_method=S256",provider:"claude") != nil,"modern Claude direct-auth URL accepted")

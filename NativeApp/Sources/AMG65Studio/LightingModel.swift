@@ -11,9 +11,11 @@ final class LightingModel: ObservableObject {
 
     private static let key = "lightingSettings"
     private static let appliedKey = "appliedLightingSettings"
+    private let defaults: UserDefaults
 
-    init() {
-        let d = UserDefaults.standard
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        let d = defaults
         settings = (d.data(forKey: Self.key)).flatMap { try? JSONDecoder().decode(LightingSettings.self, from: $0) }
             ?? LightingSettings()
         applied = (d.data(forKey: Self.appliedKey)).flatMap { try? JSONDecoder().decode(LightingSettings.self, from: $0) }
@@ -25,12 +27,29 @@ final class LightingModel: ObservableObject {
     var color: Binding<(r: UInt8, g: UInt8, b: UInt8)> {
         Binding(
             get: { (self.settings.red, self.settings.green, self.settings.blue) },
-            set: { self.settings.red = $0.r; self.settings.green = $0.g; self.settings.blue = $0.b }
+            set: { self.selectColor(RGB(r: $0.r, g: $0.g, b: $0.b)) }
         )
     }
 
     var swiftUIColor: Color {
         Color(red: Double(settings.red) / 255, green: Double(settings.green) / 255, blue: Double(settings.blue) / 255)
+    }
+
+    var selectedColor: RGB { RGB(r: settings.red, g: settings.green, b: settings.blue) }
+
+    /// Draft only. Choosing a single RGB color must not leave the rainbow flag set.
+    func selectColor(_ color: RGB) {
+        var draft = settings
+        draft.red = color.r; draft.green = color.g; draft.blue = color.b
+        draft.colorful = false
+        settings = draft
+    }
+
+    func useStaticColor() {
+        var draft = settings
+        draft.mode = 1
+        draft.colorful = false
+        settings = draft
     }
 
     func apply(using hid: KeyboardHID) {
@@ -44,7 +63,7 @@ final class LightingModel: ObservableObject {
             if result.ok {
                 self.applied = sent
                 if let data = try? JSONEncoder().encode(sent) {
-                    UserDefaults.standard.set(data, forKey: Self.appliedKey)
+                    self.defaults.set(data, forKey: Self.appliedKey)
                 }
             }
         }
@@ -57,7 +76,7 @@ final class LightingModel: ObservableObject {
 
     private func save() {
         if let data = try? JSONEncoder().encode(settings) {
-            UserDefaults.standard.set(data, forKey: Self.key)
+            defaults.set(data, forKey: Self.key)
         }
     }
 }

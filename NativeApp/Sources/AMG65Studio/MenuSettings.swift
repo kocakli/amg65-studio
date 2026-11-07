@@ -6,13 +6,26 @@ struct MenuDisplaySettings:Codable,Equatable {
     var brightness=0.4
     var text="AMG65 STUDIO"
     var textColor="#7bdcb0"
+    var textEffect="none"
     var activityEnabled=true
     enum CodingKeys:String,CodingKey {
         case brightness,text
-        case displayMode="display_mode",textColor="text_color",activityEnabled="activity_enabled"
+        case displayMode="display_mode",textColor="text_color",textEffect="text_effect",activityEnabled="activity_enabled"
+    }
+    init() {}
+    init(from decoder:Decoder) throws {
+        let values=try decoder.container(keyedBy:CodingKeys.self)
+        displayMode=try values.decode(String.self,forKey:.displayMode)
+        brightness=try values.decode(Double.self,forKey:.brightness)
+        text=try values.decode(String.self,forKey:.text)
+        textColor=try values.decode(String.self,forKey:.textColor)
+        activityEnabled=try values.decode(Bool.self,forKey:.activityEnabled)
+        // Older local bridges did not expose text effects.
+        textEffect=try values.decodeIfPresent(String.self,forKey:.textEffect) ?? "none"
     }
     var valid:Bool {
         ["overview","rotate","text"].contains(displayMode) && brightness.isFinite && (0...1).contains(brightness)
+        && ["none","scan","breathe","matrix"].contains(textEffect)
         && text.utf8.count<=64 && text.unicodeScalars.allSatisfy{(32...126).contains($0.value)}
         && textColor.range(of:#"^#[0-9a-fA-F]{6}$"#,options:.regularExpression) != nil
     }

@@ -438,12 +438,88 @@ struct LightingControls:View {
     var body:some View {
         Panel(title:"Klavye aydınlatması") {
             Picker(L("Efekt"),selection:$model.settings.mode) { ForEach(lightingModes) { Text(L($0.name)).tag($0.id) } }
-            ColorPicker(L("Tek renk"),selection:Binding(get:{model.swiftUIColor},set:{let c=colorValue($0); model.settings.red=c.r;model.settings.green=c.g;model.settings.blue=c.b}),supportsOpacity:false)
             Toggle(L("Çok renkli"),isOn:$model.settings.colorful)
+            InlineColorControls(title:"Tek renk",value:model.selectedColor,onSelect:model.selectColor)
+            Text(L(model.settings.colorful ? "Çok renkli açık. Bir renk seçmek tek renge geçer.":"Seçtiğiniz renk taslaktır; yalnızca Uygula ile klavyeye gönderilir."))
+                .font(.caption).foregroundStyle(.secondary)
+            if model.settings.mode != 1 {
+                VStack(alignment:.leading,spacing:6) {
+                    Text(L("Düz bir arka plan için Sabit efekti kullanın. Animasyonlarda renk davranışı değişebilir."))
+                        .font(.caption).foregroundStyle(.secondary)
+                    Button(L("Sabit renge geç")) { model.useStaticColor() }
+                }
+            }
             ByteSlider(title:"Parlaklık",value:$model.settings.brightness)
             ByteSlider(title:"Hız",value:$model.settings.speed)
             Button(L("Klavyeye uygula")) { model.apply(using:hid) }.buttonStyle(.borderedProminent).tint(.mint).disabled(model.applying)
             ResultView(result:model.lastResult)
+        }
+    }
+}
+
+/// Inline controls stay inside the menu/window; no floating NSColorPanel is required.
+struct InlineColorControls:View {
+    @ObservedObject private var language = StudioLanguage.shared
+    let title:String
+    let value:RGB
+    let onSelect:(RGB)->Void
+    @State private var hexText=""
+    private var invalidHex:Bool { !hexText.isEmpty && RGB.parse(hex:hexText)==nil }
+
+    var body:some View {
+        VStack(alignment:.leading,spacing:12) {
+            HStack(spacing:10) {
+                RoundedRectangle(cornerRadius:6).fill(value.color)
+                    .overlay(RoundedRectangle(cornerRadius:6).strokeBorder(Color.primary.opacity(0.16)))
+                    .frame(width:30,height:30)
+                Text(L(title)).font(.system(size:12,weight:.semibold))
+                Spacer(minLength:8)
+                Text(L("HEX")).font(.system(size:10,weight:.medium)).foregroundStyle(.secondary)
+                TextField(L("HEX"),text:$hexText)
+                    .font(.system(size:12,design:.monospaced)).textFieldStyle(.roundedBorder)
+                    .frame(width:88).accessibilityLabel(L("HEX renk kodu"))
+                    .onChange(of:hexText) { _,new in
+                        if let color=RGB.parse(hex:new),color != value { onSelect(color) }
+                    }
+                    .onSubmit { if let color=RGB.parse(hex:hexText) { onSelect(color);hexText=color.hex } }
+            }
+            HStack(spacing:8) {
+                ForEach(RGB.swatches) { swatch in
+                    Button { onSelect(swatch.value);hexText=swatch.value.hex } label: {
+                        RoundedRectangle(cornerRadius:6).fill(swatch.value.color)
+                            .overlay(RoundedRectangle(cornerRadius:6).strokeBorder(Color.primary.opacity(0.15)))
+                            .overlay {
+                                if value == swatch.value {
+                                    Image(systemName:"checkmark").font(.system(size:11,weight:.bold))
+                                        .foregroundStyle(swatch.value.g > 180 ? Color.black:Color.white)
+                                }
+                            }.frame(width:28,height:28)
+                    }.buttonStyle(.plain).help(L(swatch.name)).accessibilityLabel(L(swatch.name))
+                        .accessibilityAddTraits(value == swatch.value ? .isSelected:[])
+                }
+            }
+            VStack(spacing:5) {
+                channel("Kırmızı",keyPath:\.r,tint:.red)
+                channel("Yeşil",keyPath:\.g,tint:.green)
+                channel("Mavi",keyPath:\.b,tint:.blue)
+            }
+            if invalidHex {
+                Text(L("HEX kodu 6 haneli olmalıdır; geçersiz giriş rengi değiştirmez."))
+                    .font(.caption).foregroundStyle(.orange)
+            }
+        }
+        .onAppear { hexText=value.hex }
+        .onChange(of:value) { _,new in hexText=new.hex }
+    }
+
+    private func channel(_ name:String,keyPath:WritableKeyPath<RGB,UInt8>,tint:Color)->some View {
+        HStack(spacing:8) {
+            Text(L(name)).font(.system(size:10)).foregroundStyle(.secondary).frame(width:52,alignment:.leading)
+            Slider(value:Binding(get:{Double(value[keyPath:keyPath])},set:{ number in
+                var color=value;color[keyPath:keyPath]=UInt8(max(0,min(255,number.rounded())))
+                onSelect(color)
+            }),in:0...255,step:1).tint(tint).accessibilityLabel(L(name))
+            Text("\(value[keyPath:keyPath])").font(.system(size:10,design:.monospaced)).monospacedDigit().frame(width:25,alignment:.trailing)
         }
     }
 }
@@ -476,7 +552,9 @@ struct PerKeyControls:View {
     var body:some View {
         Panel(title:"Tuşları boya") {
             KeyGrid(color:{model.colors[$0.slot]?.color ?? .gray},action:{model.paint($0.slot)})
-            ColorPicker(L("Fırça"),selection:Binding(get:{model.brush.color},set:{model.brush=colorValue($0)}),supportsOpacity:false)
+            InlineColorControls(title:"Fırça",value:model.brush,onSelect:model.selectBrush)
+            Text(L("Rengi seçin, tuşlara tıklayın veya tümünü boyayın. Renkleri uygula ile kaydedin."))
+                .font(.caption).foregroundStyle(.secondary)
             HStack {
                 Toggle(L("Silgi"),isOn:$model.erasing)
                 Button(L("Tümünü boya")) { model.fillAll() }

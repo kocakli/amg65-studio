@@ -19,7 +19,7 @@ import subprocess
 import threading
 import time
 
-from renderer import select_activity, render_activity, render_overview, render_detail, render_text
+from renderer import select_activity, render_activity, render_overview, render_detail, render_text, apply_text_effect
 from usage_adapter import UsageAdapter
 from activity import ActivityCollector
 from account_auth import AccountManager
@@ -354,6 +354,8 @@ class Application:
                     provider = snapshot['providers'][(phase - 12) // 4]
                     pixels = render_detail(provider,brightness)
                     view = provider['id']
+                if not activity:
+                    pixels=apply_text_effect(pixels,self.settings.get('text_effect','none'),brightness,tick-started)
                 with self.lock:
                     self.state['matrix'] = {'pixels':pixels, 'view':view}
                 if self.display and self.bridge and pixels != last_pixels:

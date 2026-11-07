@@ -79,3 +79,94 @@ class ActivityRendererTests(unittest.TestCase):
             self.assertEqual(len(frame),315)
             self.assertTrue(all(len(pixel)==3 and all(0<=v<=254 for v in pixel) for pixel in frame))
             self.assertEqual(frame,render_activity(dict(row,summary='DIFFERENT'),{},0.4,1))
+
+    def test_longest_labels_leave_a_clear_gap_before_quota_meters(self):
+        from renderer import render_activity, ACTIVITY_LABELS
+        for provider in ('claude','codex','cursor'):
+            for state in ACTIVITY_LABELS:
+                frame=render_activity({'provider':provider,'state':state},{},1)
+                for x in (5,6,30,31,53,54,55,56):
+                    self.assertTrue(all(frame[y*63+x]==(0,0,0) for y in range(5)),(provider,state,x))
+                self.assertTrue(any(frame[y*63+x]!=(0,0,0) for y in range(5) for x in range(32,53)))
+
+    def test_attention_states_remain_steady_and_work_motion_is_confined_to_icon(self):
+        from renderer import render_activity
+        for state in ('waiting_approval','waiting_input','completed','error','queued'):
+            row={'provider':'claude','state':state}
+            self.assertEqual(render_activity(row,{},1,0),render_activity(row,{},1,0.5))
+        row={'provider':'claude','state':'running'}
+        first,second=render_activity(row,{},1,0),render_activity(row,{},1,0.5)
+        self.assertNotEqual(first,second)
+        changed=[index%63 for index,(a,b) in enumerate(zip(first,second)) if a!=b]
+        self.assertTrue(changed and max(changed)<5)
+
+    def test_every_activity_state_respects_zero_brightness(self):
+        from renderer import render_activity,ACTIVITY_LABELS
+        for state in ACTIVITY_LABELS:
+            self.assertEqual(render_activity({'provider':'claude','state':state},{},0,1),[(0,0,0)]*315)
+
+
+class LayoutAndPaletteTests(unittest.TestCase):
+    def test_claude_uses_a_saturated_orange_led_accent(self):
+        from renderer import COLORS
+        red,green,blue=COLORS['claude']
+        self.assertGreater(red,green*2)
+        self.assertGreater(green,blue*2)
+
+    def test_percentage_units_have_a_stable_right_edge_as_values_change(self):
+        from renderer import BLACK
+        for value in (0,9,10,99,100):
+            frame=render_overview({'providers':[{'id':'claude','remaining_percent':value}]},1)
+            self.assertTrue(any(frame[y*63+15]!=BLACK for y in range(5)))
+            self.assertTrue(all(frame[y*63+16]==BLACK for y in range(5)))
+
+    def test_text_indicator_is_not_the_unknown_character(self):
+        from renderer import render_text
+        frame=render_text('','#7bdcb0',1)
+        # A five-column T belongs to text mode. The old unsupported '*' fell back
+        # to '?' and incorrectly suggested missing data on every personal message.
+        indicator=[[frame[y*63+x]!=(0,0,0) for x in range(58,63)] for y in range(5)]
+        self.assertEqual(indicator[0],[True]*5)
+        self.assertEqual(indicator[4],[False,False,True,False,False])
+
+
+class TextEffectTests(unittest.TestCase):
+    def setUp(self):
+        self.snapshot={'providers':[{'id':p,'remaining_percent':v} for p,v in
+                                   (('claude',98),('codex',46),('cursor',54))]}
+
+    def test_none_is_lossless_and_input_frame_is_never_mutated(self):
+        from renderer import apply_text_effect
+        frame=render_overview(self.snapshot)
+        original=list(frame)
+        self.assertEqual(apply_text_effect(frame,'none'),original)
+        for effect in ('scan','breathe','matrix'):
+            apply_text_effect(frame,effect,0.4,2)
+            self.assertEqual(frame,original)
+
+    def test_matrix_preserves_every_letter_and_all_effects_preserve_quota_gauges(self):
+        from renderer import apply_text_effect,BLACK
+        frame=render_overview(self.snapshot)
+        for effect in ('none','scan','breathe','matrix'):
+            for elapsed in (0,0.49,0.5,1,4,11):
+                result=apply_text_effect(frame,effect,0.4,elapsed)
+                self.assertEqual(len(result),315)
+                for y in range(5):
+                    self.assertEqual(result[y*63+56:y*63+63],frame[y*63+56:y*63+63])
+                self.assertTrue(all(0<=v<=254 for pixel in result for v in pixel))
+                if effect=='matrix':
+                    for index,color in enumerate(frame):
+                        if color!=BLACK:self.assertEqual(result[index],color)
+
+    def test_motion_is_quantized_and_respects_zero_brightness(self):
+        from renderer import apply_text_effect
+        frame=render_overview(self.snapshot)
+        for effect in ('scan','breathe','matrix'):
+            self.assertEqual(apply_text_effect(frame,effect,0.4,0),apply_text_effect(frame,effect,0.4,0.49))
+            black=render_overview(self.snapshot,0)
+            self.assertEqual(apply_text_effect(black,effect,0,0.5),black)
+
+    def test_effect_selection_rejects_unknown_values(self):
+        from renderer import apply_text_effect
+        for effect in ('flash','<script>',None):
+            with self.assertRaises(ValueError):apply_text_effect(render_overview({}),effect)

@@ -185,3 +185,25 @@ Hesabınıza yeniden giriş yapmanız gerekiyor.	You need to sign in to your acc
 Hesap bilgilerine erişilemiyor. Erişim izinlerini kontrol edin.	Account information is inaccessible. Check access permissions.	No se puede acceder a la información de la cuenta. Revisa los permisos.	无法访问账户信息，请检查访问权限。	アカウント情報にアクセスできません。アクセス権限を確認してください。
 Bağlantı henüz doğrulanamadı. Kullanımı yenileyin.	Connection has not been verified yet. Refresh usage.	La conexión aún no se ha verificado. Actualiza el uso.	尚未验证连接，请刷新使用情况。	接続をまだ確認できていません。利用状況を更新してください。
 Yeniden giriş yap	Sign in again	Volver a iniciar sesión	重新登录	再ログイン
+Kırmızı	Red	Rojo	红色	赤
+Turuncu	Orange	Naranja	橙色	オレンジ
+Sarı	Yellow	Amarillo	黄色	黄
+Yeşil	Green	Verde	绿色	緑
+Camgöbeği	Cyan	Cian	青色	シアン
+Mavi	Blue	Azul	蓝色	青
+Mor	Purple	Morado	紫色	紫
+Beyaz	White	Blanco	白色	白
+HEX	HEX	HEX	HEX	HEX
+HEX renk kodu	HEX color code	Código de color HEX	HEX 颜色代码	HEX カラーコード
+HEX kodu 6 haneli olmalıdır; geçersiz giriş rengi değiştirmez.	Use 6 HEX digits; invalid input leaves the color unchanged.	Usa 6 dígitos HEX; una entrada no válida no cambia el color.	请输入 6 位 HEX 代码；无效输入不会更改颜色。	HEX は6桁で入力してください。無効な入力では色は変わりません。
+Çok renkli açık. Bir renk seçmek tek renge geçer.	Multicolor is on. Choosing a color switches to single color.	El modo multicolor está activo. Elegir un color activa el modo de un solo color.	多色模式已开启。选择颜色将切换为单色。	マルチカラーが有効です。色を選ぶと単色に切り替わります。
+Seçtiğiniz renk taslaktır; yalnızca Uygula ile klavyeye gönderilir.	Your color is a draft; it is sent to the keyboard only when you apply it.	El color es un borrador; solo se envía al teclado al aplicarlo.	所选颜色为草稿，只有点击应用才会发送到键盘。	選んだ色は下書きです。適用したときだけキーボードに送信されます。
+Düz bir arka plan için Sabit efekti kullanın. Animasyonlarda renk davranışı değişebilir.	Use Static for a uniform background. Color behavior can vary between animations.	Usa Estático para un fondo uniforme. El comportamiento del color puede variar según la animación.	使用静态效果可获得均匀的背景色。不同动画的颜色表现可能不同。	均一な背景色には常時点灯を使用してください。アニメーションによって色の動作が異なる場合があります。
+Sabit renge geç	Use static color	Usar color estático	使用静态颜色	単色の常時点灯にする
+Rengi seçin, tuşlara tıklayın veya tümünü boyayın. Renkleri uygula ile kaydedin.	Choose a color, then click keys or fill all. Save with Apply colors.	Elige un color y pulsa las teclas o pinta todo. Guarda con Aplicar colores.	选择颜色后，点击按键或填充全部。点击应用颜色保存。	色を選び、キーをクリックするか全体を塗ります。「色を適用」で保存してください。
+Yazı efekti	Text effect	Efecto de texto	文字效果	文字エフェクト
+Sade	Plain	Sin efecto	无效果	効果なし
+Tarama	Scan	Barrido	扫描	スキャン
+Nefes	Breathing	Respiración	呼吸	ブリージング
+Matrix	Matrix	Matrix	矩阵	マトリックス
+Efektler yazı ve kota görünümüne uygulanır; onay ve bilgi istekleri sabit kalır.	Effects apply to text and quota views; approval and input requests stay steady.	Los efectos se aplican al texto y a las cuotas; las solicitudes de aprobación y de información permanecen fijas.	效果适用于文字和配额视图；审批和信息请求保持静态。	エフェクトは文字と残り利用枠に適用されます。承認や入力の要求は動かずに表示されます。

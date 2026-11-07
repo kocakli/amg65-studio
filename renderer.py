@@ -8,10 +8,14 @@ from __future__ import annotations
 import math
 
 WIDTH, HEIGHT = 63, 5
-COLORS = {"claude": (245, 177, 106), "codex": (123, 220, 176), "cursor": (134, 190, 248)}
+# LED-specific colours, rather than uncalibrated monitor RGB. Less green makes
+# Claude visibly orange on an emissive strip. This is not a measured colour match.
+COLORS = {"claude": (254, 92, 24), "codex": (123, 220, 176), "cursor": (134, 190, 248)}
 PROVIDERS = (("claude", "A"), ("codex", "X"), ("cursor", "C"))
 UNKNOWN = (132, 144, 157)
 BLACK = (0, 0, 0)
+ATTENTION = (254, 180, 54)
+ERROR = (250, 76, 90)
 FONT = {
     "0": ("111", "101", "101", "101", "111"),
     "1": ("010", "110", "010", "010", "111"),
@@ -84,6 +88,27 @@ def _text(pixels, text, x, color, right=56):
         x += len(glyph[0]) + 1
 
 
+def text_width(text):
+    """Exact five-row bitmap width, including only inter-character spacing."""
+    return max(0, sum(len(FONT.get(char, FONT['?'])[0]) + 1 for char in text) - 1)
+
+
+def _icon(pixels, rows, x, color):
+    for y, row in enumerate(rows):
+        for dx, bit in enumerate(row):
+            if bit == '1' and 0 <= x + dx < WIDTH:
+                pixels[y * WIDTH + x + dx] = color
+
+
+STATE_ICONS = {
+    'queued': ('01110', '10001', '10101', '10001', '01110'),
+    'waiting_approval': ('00100', '00100', '00100', '00000', '00100'),
+    'waiting_input': ('01110', '00010', '00100', '00000', '00100'),
+    'completed': ('00001', '00010', '10100', '01000', '00000'),
+    'error': ('10001', '01010', '00100', '01010', '10001'),
+}
+
+
 def _bars(pixels, providers, brightness):
     for index, provider in enumerate(providers):
         x = 57 + index * 2
@@ -100,7 +125,7 @@ def _bars(pixels, providers, brightness):
 
 
 def render_overview(snapshot: dict, brightness: float = 0.4) -> list[tuple[int, int, int]]:
-    """Three concurrent percentages in 56 columns, with three right-side meters.
+    """Three aligned quota cells in 56 columns, with three right-side meters.
 
     Unknown values are ``--``. Stale values are dimmed and marked with a small
     amber pixel at the end of their cell. No percentages are inferred from errors.
@@ -113,10 +138,13 @@ def render_overview(snapshot: dict, brightness: float = 0.4) -> list[tuple[int, 
         provider = entries.get(provider_id, {"id": provider_id})
         providers.append(provider)
         value = _value(provider)
-        text = letter + (str(round(value)) if value is not None else "--")
-        _text(pixels, text, index * 19, _color(provider, brightness), min(56, index * 19 + 18))
+        text = str(round(value)) if value is not None else "--"
+        left = index * 19
+        color = _color(provider, brightness)
+        _text(pixels, letter, left, color, left + 3)
+        _text(pixels, text, left + 16 - text_width(text), color, left + 16)
         if provider.get("stale"):
-            pixels[min(55, index * 19 + 17)] = tuple(round(v * brightness) for v in (245, 177, 106))
+            pixels[min(55, left + 17)] = tuple(round(v * brightness) for v in ATTENTION)
     _bars(pixels, providers, brightness)
     return pixels
 
@@ -127,11 +155,12 @@ def render_detail(provider: dict, brightness: float = 0.4) -> list[tuple[int, in
     pixels = [BLACK] * (WIDTH * HEIGHT)
     label = {"claude": "CLAUDE", "codex": "CODEX", "cursor": "CURSOR"}.get(provider.get("id"), "?")
     color = _color(provider, brightness)
-    _text(pixels, label, 0, color)
+    _text(pixels, label, 1, color)
     value = _value(provider)
-    _text(pixels, "--" if value is None else f"{round(value)}%", 31, color)
+    text = "--" if value is None else f"{round(value)}%"
+    _text(pixels, text, 51 - text_width(text), color, 51)
     if provider.get("stale"):
-        _text(pixels, "?", 58, tuple(round(v * brightness) for v in (245, 177, 106)), 63)
+        _text(pixels, "?", 58, tuple(round(v * brightness) for v in ATTENTION), 63)
     elif value is None:
         _text(pixels, "?", 58, color, 63)
     else:
@@ -146,11 +175,60 @@ def render_text(text: str, hex_color: str, brightness: float, elapsed: float=0) 
     """Bounded marquee; short text stays centered, long text scrolls at 2px/s."""
     brightness=_brightness(brightness)
     rgb=tuple(round(min(254,int(hex_color[i:i+2],16))*brightness) for i in (1,3,5))
-    width=sum(len(FONT.get(c,FONT['?'])[0])+1 for c in text)-1
+    width=text_width(text)
     x=max(0,(56-width)//2) if width<=56 else 56-int(max(0,elapsed)*2)%(width+68)
     pixels=[BLACK]*(WIDTH*HEIGHT)
     _text(pixels,text,x,rgb)
-    _text(pixels,'*',58,rgb,63)
+    _icon(pixels,('11111','00100','00100','00100','00100'),58,rgb)
+    return pixels
+
+
+def _scale(rgb, factor):
+    # Limit the factor once, preserving hue instead of clipping each channel.
+    peak=max(rgb)
+    factor=min(factor,254/peak) if peak else factor
+    return tuple(round(channel*factor) for channel in rgb)
+
+
+def apply_text_effect(frame, effect, brightness=0.4, elapsed=0):
+    """Decorate an already brightness-scaled quota/text frame, never agent alerts.
+
+    Text pixels remain in place; the independent seven-column gauge stays intact.
+    All temporal steps are quantized to the worker's existing two-frame cadence.
+    Matrix rain occupies only previously empty pixels, leaving names readable.
+    """
+    brightness=_brightness(brightness)
+    if effect not in ('none','scan','breathe','matrix'):
+        raise ValueError('unknown text effect')
+    if len(frame)!=WIDTH*HEIGHT:
+        raise ValueError('a 63 by 5 frame is required')
+    pixels=list(frame)
+    if effect=='none' or brightness==0:
+        return pixels
+    step=int(max(0,elapsed)*2)
+    if effect=='breathe':
+        factor=0.92+0.08*math.cos(step*math.tau/12)
+        for y in range(HEIGHT):
+            for x in range(56):
+                index=y*WIDTH+x
+                pixels[index]=_scale(frame[index],factor)
+    elif effect=='scan':
+        head=(step*3)%64-4
+        for y in range(HEIGHT):
+            for x in range(56):
+                distance=abs(x-head)
+                factor=1.25 if distance<2 else 1.05 if distance<4 else 0.85
+                index=y*WIDTH+x
+                pixels[index]=_scale(frame[index],factor)
+    else:
+        for x in range(2,56,5):
+            head=(step+(x//5)*3)%11-3
+            for tail in range(3):
+                y=head-tail
+                if 0<=y<HEIGHT:
+                    index=y*WIDTH+x
+                    if frame[index]==BLACK:
+                        pixels[index]=_scale((20,168,72),brightness*0.24/(tail+1))
     return pixels
 
 ACTIVITY_LABELS = {'running':'RUN','queued':'QUEUE','waiting_approval':'ASK',
@@ -182,7 +260,7 @@ def select_activity(activity, elapsed=0, now=None):
 
 
 def render_activity(activity, snapshot, brightness=0.4, elapsed=0):
-    """Provider-coloured state text plus an attention/motion glyph and quota rails.
+    """A distinct state icon, full provider name, state code and three quota rails.
 
     No prompt, command or filename is placed on the physical display. ASCII state
     codes remain legible in the device's five rows, regardless of UI language.
@@ -194,20 +272,19 @@ def render_activity(activity, snapshot, brightness=0.4, elapsed=0):
     if provider not in COLORS or state not in ACTIVITY_LABELS: return pixels
     color=tuple(round(min(254,v)*brightness) for v in COLORS[provider])
     label={'codex':'CODEX','claude':'CLAUDE','cursor':'CURSOR'}[provider]
-    _text(pixels,label,0,color,56)
-    _text(pixels,ACTIVITY_LABELS[state],28,color,56)
-    # A quiet two-frame indicator conveys motion without flashing the whole strip.
-    if state in ('running','queued'):
-        y=int(max(0,elapsed)*2)%5
-        pixels[y*WIDTH+54]=color
-    elif state in ('waiting_approval','waiting_input'):
-        glyph='!' if state=='waiting_approval' else '?'
-        accent=tuple(round(v*brightness*(0.6 if int(elapsed*2)%2 else 1)) for v in (245,177,106))
-        _text(pixels,glyph,52,accent,56)
-    elif state=='completed':
-        for x,y in ((51,2),(52,3),(53,2),(54,1)): pixels[y*WIDTH+x]=color
-    elif state=='error':
-        _text(pixels,'!',54,tuple(round(v*brightness) for v in (250,100,105)),56)
+    _text(pixels,label,7,color,30)
+    _text(pixels,ACTIVITY_LABELS[state],32,color,53)
+    # Only this tiny icon moves, at two steps per second. Names and attention
+    # states stay steady; the transport's existing frame/ACK cadence is unchanged.
+    if state == 'running':
+        orbit=((2,0),(4,2),(2,4),(0,2))
+        active=int(max(0,elapsed)*2)%len(orbit)
+        for index,(x,y) in enumerate(orbit):
+            pixels[y*WIDTH+x]=color if index==active else tuple(v//5 for v in color)
+        pixels[2*WIDTH+2]=color
+    else:
+        accent=ATTENTION if state in ('waiting_approval','waiting_input') else ERROR if state=='error' else COLORS[provider]
+        _icon(pixels,STATE_ICONS[state],0,tuple(round(v*brightness) for v in accent))
     entries={row.get('id'):row for row in snapshot.get('providers',[]) if isinstance(row,dict)}
     _bars(pixels,[entries.get(p,{'id':p}) for p,_ in PROVIDERS],brightness)
     return pixels

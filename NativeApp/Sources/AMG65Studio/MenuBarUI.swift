@@ -44,7 +44,7 @@ private enum UsageTab:String,CaseIterable,Identifiable {
     var tint:Color {
         switch self { case .overview:return .primary
         case .codex:return Color(red:0.39,green:0.57,blue:0.45)
-        case .claude:return Color(red:0.74,green:0.51,blue:0.40)
+        case .claude:return Color(red:217.0/255,green:119.0/255,blue:87.0/255)
         case .cursor:return Color(red:0.49,green:0.51,blue:0.70) }
     }
 }
@@ -604,14 +604,24 @@ private struct MenuDisplayControls:View {
                 Text(L("Sırayla göster")).tag("rotate")
                 Text(L("Özel metin")).tag("text")
             }.pickerStyle(.menu)
+            VStack(alignment:.leading,spacing:7) {
+                Picker(L("Yazı efekti"),selection:$model.draft.textEffect) {
+                    Text(L("Sade")).tag("none")
+                    Text(L("Tarama")).tag("scan")
+                    Text(L("Nefes")).tag("breathe")
+                    Text(L("Matrix")).tag("matrix")
+                }.pickerStyle(.menu)
+                Text(L("Efektler yazı ve kota görünümüne uygulanır; onay ve bilgi istekleri sabit kalır."))
+                    .font(.system(size:10)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+            }
             if model.draft.displayMode == "text" {
                 VStack(alignment:.leading,spacing:7) {
                     TextField(L("Özel metin"),text:$model.draft.text).textFieldStyle(.roundedBorder)
                     Text(L("En fazla 64 ASCII karakter. LED metni büyük harfle gösterilir."))
                         .font(.system(size:10)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
-                    ColorPicker(L("Yazı rengi"),selection:Binding(get:{color(model.draft.textColor)},set:{value in
-                        let rgb=colorValue(value);model.draft.textColor=String(format:"#%02x%02x%02x",rgb.r,rgb.g,rgb.b)
-                    }),supportsOpacity:false)
+                    InlineColorControls(title:"Yazı rengi",value:RGB.parse(hex:model.draft.textColor) ?? RGB(r:123,g:220,b:176)) { value in
+                        model.draft.textColor=value.hex.lowercased()
+                    }
                 }
             }
             VStack(alignment:.leading,spacing:7) {
@@ -633,9 +643,5 @@ private struct MenuDisplayControls:View {
             if let message=model.message { Text(L(message)).font(.system(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true) }
             if !model.loaded { Text(L("Ekran ayarları bekleniyor…")).font(.system(size:11)).foregroundStyle(.secondary) }
         }.font(.system(size:12)).disabled(model.saving)
-    }
-    private func color(_ hex:String)->Color {
-        guard let value=UInt32(hex.dropFirst(),radix:16) else { return .mint }
-        return Color(red:Double((value>>16)&255)/255,green:Double((value>>8)&255)/255,blue:Double(value&255)/255)
     }
 }

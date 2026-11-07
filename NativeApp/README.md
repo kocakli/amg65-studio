@@ -52,6 +52,12 @@ Cursor düğmesi Cursor uygulamasını açar; orada giriş yaptıktan sonra kull
 
 Resmi Claude yardımcısı tam derleme sırasında [`tools/prepare_claude_auth.py`](../tools/prepare_claude_auth.py) ile sabit sürüm/kaynak/checksum üzerinden hazırlanır; ayrıca çalıştırılabilir. İndirme ve imza doğrulamasından sonra `bin/claude-auth` konumuna yerleştirilir ve Studio’nun özel kurulumuna kopyalanır. Global `claude` komutu, PATH, mevcut CLI kurulumu ve proje yapılandırmaları değiştirilmez. Mevcut Claude Code 2.0.35 etkinlik hook desteği ayrı kalır; kimlik doğrulama yardımcısının sürümüyle karıştırılmamalıdır.
 
+## Tuşların aydınlatma rengini seçme
+
+**Aydınlatma → Tek renk** bölümündeki paletten bir renk seçin veya HEX kodunu girip Enter ile seçimi onaylayın. RGB kaydırıcıları özel tonları ayarlar; ayrı macOS renk paneline gerek yoktur. Bir renk seçmek çok renkli tercihini kapatır. Düz arka plan için **Sabit renge geç**, ardından **Klavyeye uygula** seçilir. Animasyonlarda seçilen rengin kullanımı efektin firmware davranışına bağlıdır.
+
+Tuş renkleri bölümünde aynı kontroller fırçayı seçer; renk seçimi silgiyi kapatır. Tuşa tıklamak veya tüm tuşları doldurmak taslağı düzenler; **Renkleri uygula** ayarları cihaza gönderir. Renk seçmek tek başına USB yazımı başlatmaz.
+
 ## Gerçek iş durumları
 
 İş durumu kotadan veya işlemci kullanımından tahmin edilmez. Pasif host hook’ları ve Codex’in sınırlı son oturum metadata’sı kullanılır. Prompt, cevap, komut, dosya yolu veya araç çıktısı menüye/LED’e taşınmaz; yalnızca sabit durum/özet, zaman ve opak oturum kimliği tutulur. Kayıt hatası agent işine izin vermez, onu reddetmez veya değiştirmez. Etkinlik göstergesini kapatmak için paneldeki **İş durumlarını LED’de göster** seçeneğini kullanın.
@@ -108,3 +114,7 @@ Panel açıkken yerel kota/durum 15 saniyede bir, yalnızca Hesaplar bölümünd
 
 
 Popup tasarımını gerçek SwiftUI bileşenlerinden, kullanıcı kotaları yerine açıkça test verileriyle çevrimdışı görüntülemek için `python3 NativeApp/Tests/render_menu.py /tmp/amg65-menu-preview` kullanılabilir. Bu derleme `STUDIO_UI_PREVIEW` koşulunu kullanır; ağ döngüsü devre dışıdır ve hiçbir pencere açılmaz. Test görselleri gerçek kullanım değerleri olarak paylaşılmamalıdır.
+
+## LED yazı efektleri
+
+**Gösterim → Yazı efekti** bölümünde Sade, Tarama, Nefes ve Matrix seçenekleri bulunur. Tarama aydınlık bir sütun geçişi; Nefes hafif parlaklık değişimi; Matrix yazının boş piksellerinde düşük parlaklıkta yeşil izler oluşturur. Kota görünümü, sağlayıcı ayrıntısı ve kişisel metinde seçilen efekt uygulanır. Agent durum sayfaları kendi sabit metin/ikon düzenlerini korur. Efekt seçimi taslaktır; **Uygula** ile kaydedilir. Varsayılan Sade’dir.
