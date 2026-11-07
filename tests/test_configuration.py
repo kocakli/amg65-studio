@@ -34,7 +34,7 @@ class ConfigurationTests(unittest.TestCase):
     def test_text_effect_is_opt_in_and_bounded(self):
         from configuration import DEFAULTS
         self.assertEqual(DEFAULTS['text_effect'],'none')
-        for effect in ('none','scan','breathe','matrix'):
+        for effect in ('none','scan','breathe','matrix','scroll'):
             self.assertEqual(settings_patch({'text_effect':effect}),{'text_effect':effect})
         for effect in (True,None,'rainbow','<script>'):
             with self.assertRaises(ValueError):settings_patch({'text_effect':effect})

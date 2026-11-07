@@ -21,6 +21,24 @@ class InstallLifecycleTests(unittest.TestCase):
         self.kill = self.enterContext(patch.object(installer.os, 'kill', side_effect=AssertionError('Unexpected signal')))
         self.sleep = self.enterContext(patch.object(installer.time, 'sleep'))
 
+    def test_backend_policy_supports_live_led_without_global_timer_override(self):
+        destination = Path('/private/tmp/AMG65 Studio fixture')
+        executable = Path('/test/python3')
+        with patch.object(installer, 'DEST', destination):
+            spec = installer.backend_agent_spec(executable, destination/'state')
+        # Validate the plist that install() writes, including space-safe argv.
+        decoded = plistlib.loads(plistlib.dumps(spec))
+        self.assertEqual(decoded['ProcessType'], 'Interactive')
+        self.assertEqual(decoded['ProgramArguments'], [str(executable), str(destination/'app.py')])
+        self.assertEqual(decoded['WorkingDirectory'], str(destination))
+        self.assertNotIn('LegacyTimers', decoded)
+        self.assertNotIn('HardResourceLimits', decoded)
+        self.assertNotIn('Nice', decoded)
+        self.assertTrue(decoded['KeepAlive'])
+        self.assertFalse(installer.menu_agent_spec()['KeepAlive'])
+        self.run.assert_not_called()
+        self.kill.assert_not_called()
+
     def test_process_match_uses_exact_executable_with_spaces(self):
         app = Path('/Applications/AMG65 Studio.app')
         executable = str(app/'Contents/MacOS/AMG65Studio')

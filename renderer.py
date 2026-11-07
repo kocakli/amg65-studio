@@ -171,14 +171,23 @@ def render_detail(provider: dict, brightness: float = 0.4) -> list[tuple[int, in
     return pixels
 
 
-def render_text(text: str, hex_color: str, brightness: float, elapsed: float=0) -> list[tuple[int,int,int]]:
+def render_text(text: str, hex_color: str, brightness: float, elapsed: float=0, *, marquee=False) -> list[tuple[int,int,int]]:
     """Bounded marquee; short text stays centered, long text scrolls at 2px/s."""
     brightness=_brightness(brightness)
     rgb=tuple(round(min(254,int(hex_color[i:i+2],16))*brightness) for i in (1,3,5))
     width=text_width(text)
-    x=max(0,(56-width)//2) if width<=56 else 56-int(max(0,elapsed)*2)%(width+68)
     pixels=[BLACK]*(WIDTH*HEIGHT)
-    _text(pixels,text,x,rgb)
+    if marquee:
+        # Start visible, repeat the whole message with a ten-pixel gap. Even a
+        # short message moves; long messages are not cropped before scrolling.
+        period=max(1,width+10)
+        x=-int(max(0,elapsed)*2)%period-period
+        while x<56:
+            _text(pixels,text,x,rgb)
+            x+=period
+    else:
+        x=max(0,(56-width)//2) if width<=56 else 56-int(max(0,elapsed)*2)%(width+68)
+        _text(pixels,text,x,rgb)
     _icon(pixels,('11111','00100','00100','00100','00100'),58,rgb)
     return pixels
 
@@ -190,44 +199,71 @@ def _scale(rgb, factor):
     return tuple(round(channel*factor) for channel in rgb)
 
 
-def apply_text_effect(frame, effect, brightness=0.4, elapsed=0):
-    """Decorate an already brightness-scaled quota/text frame, never agent alerts.
+def apply_text_effect(frame, effect, brightness=0.4, elapsed=0, *, left=0):
+    """Decorate an already brightness-scaled text frame, never attention alerts.
 
-    Text pixels remain in place; the independent seven-column gauge stays intact.
+    The independent seven-column gauge stays intact. Matrix moves complete
+    glyph-column groups downward, then holds the readable text between waves.
     All temporal steps are quantized to the worker's existing two-frame cadence.
-    Matrix rain occupies only previously empty pixels, leaving names readable.
+    Other effects keep text in place. Matrix rain occupies only empty pixels.
     """
     brightness=_brightness(brightness)
-    if effect not in ('none','scan','breathe','matrix'):
+    if effect not in ('none','scan','breathe','matrix','scroll'):
         raise ValueError('unknown text effect')
     if len(frame)!=WIDTH*HEIGHT:
         raise ValueError('a 63 by 5 frame is required')
+    if type(left) is not int or not 0<=left<56:
+        raise ValueError('invalid text boundary')
     pixels=list(frame)
     if effect=='none' or brightness==0:
         return pixels
     step=int(max(0,elapsed)*2)
-    if effect=='breathe':
+    if effect=='scroll':
+        span=56-left
+        offset=step%(span+8)
+        for y in range(HEIGHT):
+            for x in range(span):
+                source=(x+offset)%(span+8)
+                pixels[y*WIDTH+left+x]=frame[y*WIDTH+left+source] if source<span else BLACK
+    elif effect=='breathe':
         factor=0.92+0.08*math.cos(step*math.tau/12)
         for y in range(HEIGHT):
-            for x in range(56):
+            for x in range(left,56):
                 index=y*WIDTH+x
                 pixels[index]=_scale(frame[index],factor)
     elif effect=='scan':
         head=(step*3)%64-4
         for y in range(HEIGHT):
-            for x in range(56):
+            for x in range(left,56):
                 distance=abs(x-head)
                 factor=1.25 if distance<2 else 1.05 if distance<4 else 0.85
                 index=y*WIDTH+x
                 pixels[index]=_scale(frame[index],factor)
     else:
-        for x in range(2,56,5):
+        # Split on genuinely empty columns so each bitmap character falls as one
+        # piece, including our variable-width glyphs. A five-row display cannot
+        # show tall rain: wrap whole glyphs downward, then let them settle.
+        columns=[x for x in range(left,56) if any(frame[y*WIDTH+x]!=BLACK for y in range(HEIGHT))]
+        groups=[]
+        for x in columns:
+            if not groups or x>groups[-1][-1]+1:groups.append([])
+            groups[-1].append(x)
+        for y in range(HEIGHT):
+            pixels[y*WIDTH+left:y*WIDTH+56]=[BLACK]*(56-left)
+        phase=step%11
+        for index,group in enumerate(groups):
+            fall=phase-index%3
+            offset=fall if 0<fall<HEIGHT else 0
+            for x in group:
+                for y in range(HEIGHT):
+                    pixels[((y+offset)%HEIGHT)*WIDTH+x]=frame[y*WIDTH+x]
+        for x in range(left+2,56,5):
             head=(step+(x//5)*3)%11-3
             for tail in range(3):
                 y=head-tail
                 if 0<=y<HEIGHT:
                     index=y*WIDTH+x
-                    if frame[index]==BLACK:
+                    if pixels[index]==BLACK:
                         pixels[index]=_scale((20,168,72),brightness*0.24/(tail+1))
     return pixels
 

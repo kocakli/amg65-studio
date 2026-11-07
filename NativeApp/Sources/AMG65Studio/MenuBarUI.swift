@@ -610,8 +610,9 @@ private struct MenuDisplayControls:View {
                     Text(L("Tarama")).tag("scan")
                     Text(L("Nefes")).tag("breathe")
                     Text(L("Matrix")).tag("matrix")
+                    Text(L("Kayan yazı")).tag("scroll")
                 }.pickerStyle(.menu)
-                Text(L("Efektler yazı ve kota görünümüne uygulanır; onay ve bilgi istekleri sabit kalır."))
+                Text(L("Efektler metin ve kota görünümlerinde kullanılır; onay, bilgi ve hata uyarıları sabit kalır."))
                     .font(.system(size:10)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
             }
             if model.draft.displayMode == "text" {

@@ -262,6 +262,7 @@ class Application:
     def run(self):
         next_cache = next_connect = next_sync = 0.0
         last_pixels = None
+        animation_step = 0
         started = time.monotonic()
         while not self.quit.is_set():
             tick = time.monotonic()
@@ -339,13 +340,17 @@ class Application:
                 phase = int(tick - started) % 24
                 mode=self.settings['display_mode']
                 brightness=self.settings['brightness']
+                # Advance one visual step per rendered/acknowledged iteration.
+                # A slow USB frame must not jump over the falling-letter phases.
+                animation_elapsed=animation_step/2
                 activity=select_activity(snapshot.get('activity'),tick-started) if self.settings.get('activity_enabled',True) else None
                 if activity:
-                    pixels=render_activity(activity,snapshot,brightness,tick-started)
+                    pixels=render_activity(activity,snapshot,brightness,animation_elapsed)
                     view='activity'
                     with self.lock: self.state['activity']['selected']=activity
                 elif mode=='text':
-                    pixels=render_text(self.settings['text'],self.settings['text_color'],brightness,tick-started)
+                    pixels=render_text(self.settings['text'],self.settings['text_color'],brightness,animation_elapsed,
+                                       marquee=self.settings.get('text_effect')=='scroll')
                     view='text'
                 elif mode=='overview' or phase < 12:
                     pixels = render_overview(snapshot,brightness)
@@ -354,8 +359,9 @@ class Application:
                     provider = snapshot['providers'][(phase - 12) // 4]
                     pixels = render_detail(provider,brightness)
                     view = provider['id']
-                if not activity:
-                    pixels=apply_text_effect(pixels,self.settings.get('text_effect','none'),brightness,tick-started)
+                if (not activity or activity['state'] in ('running','queued','completed')) and not (view=='text' and self.settings.get('text_effect')=='scroll'):
+                    pixels=apply_text_effect(pixels,self.settings.get('text_effect','none'),brightness,animation_elapsed,
+                                             left=7 if activity else 0)
                 with self.lock:
                     self.state['matrix'] = {'pixels':pixels, 'view':view}
                 if self.display and self.bridge and pixels != last_pixels:
@@ -363,6 +369,7 @@ class Application:
                     self.device_status(connected=True, message='LED aktarımı etkin · USB onaylı',
                                        acknowledged_packets=result['acknowledged_packets'], last_frame=iso_now())
                     last_pixels = pixels
+                animation_step += 1
             except (OSError, ValueError, KeyError) as exc:
                 self.operation(str(exc),ok=False)
                 if isinstance(exc,OSError): self.disconnect(exc)

@@ -140,14 +140,15 @@ class TextEffectTests(unittest.TestCase):
         frame=render_overview(self.snapshot)
         original=list(frame)
         self.assertEqual(apply_text_effect(frame,'none'),original)
-        for effect in ('scan','breathe','matrix'):
+        for effect in ('scan','breathe','matrix','scroll'):
             apply_text_effect(frame,effect,0.4,2)
             self.assertEqual(frame,original)
 
-    def test_matrix_preserves_every_letter_and_all_effects_preserve_quota_gauges(self):
+    def test_matrix_preserves_letter_pixels_and_all_effects_preserve_quota_gauges(self):
+        from collections import Counter
         from renderer import apply_text_effect,BLACK
         frame=render_overview(self.snapshot)
-        for effect in ('none','scan','breathe','matrix'):
+        for effect in ('none','scan','breathe','matrix','scroll'):
             for elapsed in (0,0.49,0.5,1,4,11):
                 result=apply_text_effect(frame,effect,0.4,elapsed)
                 self.assertEqual(len(result),315)
@@ -155,13 +156,32 @@ class TextEffectTests(unittest.TestCase):
                     self.assertEqual(result[y*63+56:y*63+63],frame[y*63+56:y*63+63])
                 self.assertTrue(all(0<=v<=254 for pixel in result for v in pixel))
                 if effect=='matrix':
-                    for index,color in enumerate(frame):
-                        if color!=BLACK:self.assertEqual(result[index],color)
+                    original_colors=Counter(color for color in frame if color!=BLACK)
+                    actual_colors=Counter(result)
+                    for color,count in original_colors.items():self.assertGreaterEqual(actual_colors[color],count)
+
+    def test_matrix_moves_the_letters_downward_and_settles_between_waves(self):
+        from renderer import apply_text_effect,BLACK
+        frame=render_overview(self.snapshot)
+        moving=apply_text_effect(frame,'matrix',0.4,1)
+        self.assertTrue(any(pixel!=BLACK and moving[index]!=pixel for index,pixel in enumerate(frame) if index%63<56))
+        # At the end of the cycle the letter pixels return to their exact rows.
+        settled=apply_text_effect(frame,'matrix',0.4,4.5)
+        for index,color in enumerate(frame):
+            if color!=BLACK:self.assertEqual(settled[index],color)
+
+    def test_activity_text_can_flow_without_moving_its_status_icon(self):
+        from renderer import apply_text_effect,render_activity,BLACK
+        frame=render_activity({'provider':'codex','state':'running'},self.snapshot,0.4,0)
+        moving=apply_text_effect(frame,'matrix',0.4,1,left=7)
+        for index,pixel in enumerate(frame):
+            if index%63<7 or index%63>=56:self.assertEqual(moving[index],pixel)
+        self.assertTrue(any(moving[i]!=p for i,p in enumerate(frame) if 7<=i%63<56 and p!=BLACK))
 
     def test_motion_is_quantized_and_respects_zero_brightness(self):
         from renderer import apply_text_effect
         frame=render_overview(self.snapshot)
-        for effect in ('scan','breathe','matrix'):
+        for effect in ('scan','breathe','matrix','scroll'):
             self.assertEqual(apply_text_effect(frame,effect,0.4,0),apply_text_effect(frame,effect,0.4,0.49))
             black=render_overview(self.snapshot,0)
             self.assertEqual(apply_text_effect(black,effect,0,0.5),black)
@@ -170,3 +190,22 @@ class TextEffectTests(unittest.TestCase):
         from renderer import apply_text_effect
         for effect in ('flash','<script>',None):
             with self.assertRaises(ValueError):apply_text_effect(render_overview({}),effect)
+
+    def test_short_personal_text_scrolls_immediately_and_loops_without_changing_the_mode_icon(self):
+        from renderer import render_text,text_width
+        first=render_text('HELLO','#7bdcb0',0.4,0,marquee=True)
+        next_frame=render_text('HELLO','#7bdcb0',0.4,.5,marquee=True)
+        self.assertNotEqual(first,next_frame)
+        for y in range(5):self.assertEqual(first[y*63+56:y*63+63],next_frame[y*63+56:y*63+63])
+        period=text_width('HELLO')+10
+        self.assertEqual(first,render_text('HELLO','#7bdcb0',0.4,period/2,marquee=True))
+
+    def test_long_personal_marquee_keeps_content_beyond_the_first_viewport(self):
+        from renderer import render_text,text_width
+        prefix='AMG65 STUDIO AMG65 STUDIO '
+        # The changed tail starts outside the initial viewport, then arrives.
+        first=render_text(prefix+'ABC','#7bdcb0',.4,0,marquee=True)
+        self.assertEqual(first,render_text(prefix+'XYZ','#7bdcb0',.4,0,marquee=True))
+        later=text_width(prefix)/2
+        self.assertNotEqual(render_text(prefix+'ABC','#7bdcb0',.4,later,marquee=True),
+                            render_text(prefix+'XYZ','#7bdcb0',.4,later,marquee=True))

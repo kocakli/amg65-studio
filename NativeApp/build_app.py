@@ -74,7 +74,7 @@ def package(binary,prefix,dylib,app):
     info={'CFBundleName':'AMG65 Studio','CFBundleDisplayName':'AMG65 Studio',
           'CFBundleIdentifier':'io.github.kocakli.amg65studio.desktop',
           'CFBundleExecutable':'AMG65Studio','CFBundlePackageType':'APPL',
-          'CFBundleVersion':'12','CFBundleShortVersionString':'0.3.0',
+          'CFBundleVersion':'14','CFBundleShortVersionString':'0.3.0',
           'LSMinimumSystemVersion':minimum_text,'NSHighResolutionCapable':True,
           'NSPrincipalClass':'NSApplication'}
     catalogs=ROOT/'Sources/AMG65Studio/Resources/localizations'

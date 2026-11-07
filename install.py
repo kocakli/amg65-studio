@@ -115,6 +115,20 @@ def menu_agent_spec():
     }
 
 
+def backend_agent_spec(executable, state):
+    return {
+        'Label':LABEL, 'ProgramArguments':[str(executable),str(DEST/'app.py')],
+        'WorkingDirectory':str(DEST), 'RunAtLoad':True, 'KeepAlive':True,
+        # The user-visible LED depends on timely serial HID acknowledgements.
+        # Background policy coalesces each 5/10ms wait to ~100ms. Adaptive
+        # promotes XPC activity, but our native/bridge IPC is HTTP and stdin.
+        # Keep the helper's ACK deadlines, spacing and frame limit unchanged.
+        'ThrottleInterval':30, 'ExitTimeOut':15, 'ProcessType':'Interactive',
+        'StandardOutPath':'/dev/null', 'StandardErrorPath':str(state/'launchd.log'),
+        'EnvironmentVariables':{'PYTHONUNBUFFERED':'1','PYTHONDONTWRITEBYTECODE':'1'},
+    }
+
+
 def install_native_app(source):
     APP.parent.mkdir(parents=True,exist_ok=True)
     if APP.exists():
@@ -186,13 +200,7 @@ def install(dashboard_only=False):
     if not dashboard_only:
         (DEST/'bin/claude-auth').chmod(0o755)
     PLIST.parent.mkdir(parents=True, exist_ok=True)
-    spec = {
-        'Label':LABEL, 'ProgramArguments':[str(executable),str(DEST/'app.py')],
-        'WorkingDirectory':str(DEST), 'RunAtLoad':True, 'KeepAlive':True,
-        'ThrottleInterval':30, 'ExitTimeOut':15, 'ProcessType':'Background',
-        'StandardOutPath':'/dev/null', 'StandardErrorPath':str(state/'launchd.log'),
-        'EnvironmentVariables':{'PYTHONUNBUFFERED':'1','PYTHONDONTWRITEBYTECODE':'1'},
-    }
+    spec = backend_agent_spec(executable, state)
     PLIST.write_bytes(plistlib.dumps(spec))
     PLIST.chmod(0o600)
     start_job(PLIST)

@@ -203,7 +203,7 @@ import Darwin
         let initialSettings=MenuDisplaySettings()
         let legacySettings=try JSONDecoder().decode(MenuDisplaySettings.self,from:Data(##"{"display_mode":"text","brightness":0.4,"text":"DRAFT","text_color":"#ffffff","activity_enabled":true}"##.utf8))
         check(legacySettings.textEffect=="none" && legacySettings.text=="DRAFT" && legacySettings.valid,"legacy bridge settings default missing text effect to none")
-        for effect in ["none","scan","breathe","matrix"] {
+        for effect in ["none","scan","breathe","matrix","scroll"] {
             var settings=initialSettings;settings.textEffect=effect
             let encoded=try JSONEncoder().encode(settings)
             let decoded=try JSONDecoder().decode(MenuDisplaySettings.self,from:encoded)

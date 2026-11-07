@@ -17,7 +17,7 @@ def settings_patch(value):
     result = dict(value)
     if 'display_mode' in value and value['display_mode'] not in ('overview','rotate','text'):
         raise ValueError('Geçersiz ekran modu.')
-    if 'text_effect' in value and value['text_effect'] not in ('none','scan','breathe','matrix'):
+    if 'text_effect' in value and value['text_effect'] not in ('none','scan','breathe','matrix','scroll'):
         raise ValueError('Geçersiz yazı efekti.')
     if 'brightness' in value:
         b=value['brightness']

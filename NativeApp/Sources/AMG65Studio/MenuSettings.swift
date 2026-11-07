@@ -25,7 +25,7 @@ struct MenuDisplaySettings:Codable,Equatable {
     }
     var valid:Bool {
         ["overview","rotate","text"].contains(displayMode) && brightness.isFinite && (0...1).contains(brightness)
-        && ["none","scan","breathe","matrix"].contains(textEffect)
+        && ["none","scan","breathe","matrix","scroll"].contains(textEffect)
         && text.utf8.count<=64 && text.unicodeScalars.allSatisfy{(32...126).contains($0.value)}
         && textColor.range(of:#"^#[0-9a-fA-F]{6}$"#,options:.regularExpression) != nil
     }

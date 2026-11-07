@@ -77,7 +77,7 @@ x: 0....4  7.....................29  32................51  52..55 | 56..62
    5×5 ikon  TAM SAĞLAYICI ADI          RUN / ASK / INPUT     boş | 3 kota
 ```
 
-Tam sağlayıcı adı kendi renginde, durum sözcüğü sabit ve okunur kalır. `CLAUDE` ve `CURSOR` 7–29, `INPUT` 32–51 aralığını tam kullanır. İkon 0–4’te bağımsızdır; yazı ve sağ göstergelerle çakışmaz. Ayrıntı kotasında ad x=1’den başlar, yüzde sağ sınır 51’e hizalanır; gösterge x=58–60 olur.
+Sade modunda tam sağlayıcı adı kendi renginde, durum sözcüğü sabit ve okunur kalır; isteğe bağlı Matrix yazı akışı aşağıdaki ekte açıklanır. `CLAUDE` ve `CURSOR` 7–29, `INPUT` 32–51 aralığını tam kullanır. İkon 0–4’te bağımsızdır; yazı ve sağ göstergelerle çakışmaz. Ayrıntı kotasında ad x=1’den başlar, yüzde sağ sınır 51’e hizalanır; gösterge x=58–60 olur.
 
 ## 4. Durum dili ve öncelik
 
@@ -88,7 +88,7 @@ LED, bir izin isteğine yanıt vermez; yalnız gözlenen olayı gösterir. Renk 
 | Onay isteği | `ASK` | Sabit `!` | Öncelikli dikkat sayfası. |
 | Kullanıcı girdisi isteği | `INPUT` | Sabit `?` | `ASK` ile aynı öncelik. |
 | Hata olayı | `ERROR` | Kırmızı çapraz | Dikkat isteklerinden sonra. |
-| Çalışma olayı | `RUN` | Oynat/çalışma simgesi | Metin sabit; küçük ikon hareketi isteğe bağlı. |
+| Çalışma olayı | `RUN` | Oynat/çalışma simgesi | Sade modunda metin sabit; seçilen yazı efekti uygulanabilir. |
 | Kuyruk olayı | `QUEUE` | Kum saati / bekleme şekli | Çalışmadan sonra; kota görünümünü sürekli engellemez. |
 | Tamamlanma olayı | `DONE` | Onay işareti | Kısa bildirim; daha öncelikli olayları kesmez. |
 | Veri yok / süresi dolmuş | Etkinlik sayfası yok | Başarı simgesi yok | Kota görünümüne dönülür. |
@@ -118,9 +118,9 @@ Karşılaştırma üç sağlayıcının eşit sayısal parlaklıkta eşit parlak
 
 ## 6. Hareket, sayfa bekleme ve USB yükü
 
-Kota ve alarm metinleri kaymasın. Uzun kişisel metinde kaydırma ayrı, kullanıcının seçtiği bir özellik olabilir. Kısa metin 56 sütunda ortalansın; sağ küçük bölüm dekoratif taşma alanı yapılmasın. Araştırma başındaki `render_text` içinde tanımsız `*` karakterinin `?` çizimine düşmesi gerçek bir önizleme kusuruydu; bunun yerine açıkça tanımlanmış bir metin simgesi planlandı.
+İlk tasarım adayı kota ve alarm metnini sabit tutuyordu. Güncel kararda Sade varsayılan olarak korunur; kullanıcı Matrix seçtiğinde kota, kişisel metin ve RUN/QUEUE/DONE yazıları da aşağı doğru akar. ASK/INPUT/ERROR uyarıları sabit kalır. Uzun kişisel metnin yatay kaydırması ayrı bir davranıştır. Kısa metin 56 sütunda ortalansın; sağ küçük bölüm dekoratif taşma alanı yapılmasın. Araştırma başındaki `render_text` içinde tanımsız `*` karakterinin `?` çizimine düşmesi gerçek bir önizleme kusuruydu; bunun yerine açıkça tanımlanmış bir metin simgesi planlandı.
 
-RUN için planlanan 2 Hz, dört fazlı küçük ikon hareketi **iki kare değişimi/saniye** demektir; metnin yanıp sönmesi anlamına gelmemelidir. ASK/INPUT simgeleri statik kalsın. Bütün şeridi terslemek, kırmızı flaş ve yüzde yazısını söndürmek kullanılmasın. Statik/azaltılmış hareket seçeneği bir sonraki kullanılabilirlik geliştirmesi olarak değerlendirilsin. W3C, sürekli hareketi durdurma denetimini ve flaşlardan kaçınmayı ayrı konular olarak ele alır; yalnız düşük Hz sayısı fiziksel güvenlik veya erişilebilirlik kanıtı değildir. [W3C hareket denetimi](https://www.w3.org/WAI/WCAG22/Understanding/pause-stop-hide.html), [W3C flaş eşiği açıklaması](https://www.w3.org/WAI/WCAG22/Understanding/three-flashes-or-below-threshold.html)
+RUN ikonu ve yazı efektleri için nominal üst hız saniyede iki çizim adımıdır; gerçek kare aralığı USB yanıtlarına bağlıdır. Seçilen yazı efekti bu ikonun alanına taşmaz. ASK/INPUT/ERROR simgeleri ve metinleri statik kalır. Bütün şeridi terslemek, kırmızı flaş ve yüzde yazısını söndürmek kullanılmasın. Sade seçeneği yazı efektini kapatır; RUN ikonunu da durduran kapsamlı azaltılmış hareket seçeneği ayrıca değerlendirilebilir. W3C, sürekli hareketi durdurma denetimini ve flaşlardan kaçınmayı ayrı konular olarak ele alır; yalnız düşük Hz sayısı fiziksel güvenlik veya erişilebilirlik kanıtı değildir. [W3C hareket denetimi](https://www.w3.org/WAI/WCAG22/Understanding/pause-stop-hide.html), [W3C flaş eşiği açıklaması](https://www.w3.org/WAI/WCAG22/Understanding/three-flashes-or-below-threshold.html)
 
 Studio’nun mevcut akışı aynı piksel dizisini yeniden göndermez. Tek bir hareketli nokta bile kareyi değiştirir; canlı kare aktarımı 19 raporluk işlem gerektirir. Bu nedenle hareket, statik sayfadan daha fazla USB işlemi üretir. Upstream’in kendi cihazındaki hızlı akış deneyleri bu kurulum için güvenilir hız garantisi değildir. Görsel iyileştirme adına ACK doğrulaması, checksum veya hata sonrası durma davranışı gevşetilmemelidir. Kaynak: [AMG65 aktarım uygulaması](https://github.com/aumbro/leobog_amg65_rgb/blob/2bd9ed8e9a2c0f8778562f68449d7869a86476a5/amg65/matrix.py), Studio [AMG65HID.swift](../AMG65HID.swift) ve [app.py](../app.py).
 
@@ -151,12 +151,30 @@ Bu rapor hazırlanırken renderer ve testler okundu, glyph genişlikleri ve yuka
 
 ## Ek: kullanıcı seçimiyle yazı efektleri
 
-Kullanıcının ek isteğiyle Ekran ayarlarına **Sade, Tarama, Nefes ve Matrix** seçenekleri eklenir (`text_effect`: `none`, `scan`, `breathe`, `matrix`). Varsayılan **Sade** kalır. Efektler kota ve kişisel metin görünümüne uygulanır; onay ve bilgi isteği metinleri/simgeleri sabit kalır. Matrix adı bir stil seçeneğidir; rastgele karakterler gerçek yüzde veya durumun yerine geçmemelidir.
+Ekran ayarlarında **Sade, Tarama, Nefes, Matrix ve Kayan yazı** seçenekleri bulunur (`text_effect`: `none`, `scan`, `breathe`, `matrix`, `scroll`). Varsayılan **Sade** kalır. Efektler kota, kişisel metin ve RUN/QUEUE/DONE durumlarının yazı alanına uygulanır. Soldaki durum ikonu ve sağdaki kota göstergeleri efekt işleminden korunur; ASK/INPUT/ERROR metinleri ve simgeleri bütünüyle sabit kalır.
+
+İlk Matrix adayı yazıyı yerinde tutup arka planda hareket üretiyordu. Kullanıcı geri bildirimiyle bu davranış değiştirildi: güncel Matrix, **gerçek yazının harf gruplarını yukarıdan aşağıya kaydırır**, ardından metnin tamamının okunabildiği duraklar verir. Rastgele karakterlerle uydurma oran veya durum üretilmez. Beş satırda akış sırasında harflerin bir bölümü görünmeyebilir; okuma durakları bu nedenle işlevin parçasıdır.
+
+**Kayan yazı** (`scroll`), kaynak metni sola doğru döngüsel kaydırır; her gerçek animasyon adımı bir pikseldir. Kişisel metin modunda yalnız uzun yazılar değil, kısa yazılar da bu seçimle akar. Kota ve izin verilen durum yazılarında aynı efekt seçimi geçerlidir; sol durum ikonu, sağ kota göstergeleri ve ASK/INPUT/ERROR uyarıları için koruma sınırları değişmez. Bu yatay hareket Matrix’in aşağı yönlü harf grubu akışından ayrı bir seçenektir.
 
 Hareket kullanıcı tarafından açılır; global kare üretimi üst sınırı **2 fps** olarak korunur. Bu, yeni bir USB hız modu veya iki flaş/saniye güvenlik iddiası değildir. ACK bekleme, checksum, kare aktarım aralığı ve hata sonrası durma kuralları değiştirilmez. Son görünümün okunabilirliği ve fiziksel rengi yukarıdaki cihaz testlerine tabidir; özellikle Nefes efektinin en sönük fazında rakamların seçilebilir kalması kontrol edilmelidir.
 
 ## Uygulama ve önizleme
 
-Bu araştırmadaki hizalı kota düzeni, soldaki durum ikonları ve ayrı LED turuncusu renderer’a uygulandı. Sade, Tarama, Nefes ve Matrix seçenekleri hem native menüye hem web ekran ayarlarına eklendi. Etkinlik sayfaları bu dekoratif işlemeden geçmez. Matrix için çalışan yerel köprüde yazı/gösterge piksellerinin korunduğu ve değişen karelerin USB onayı aldığı gözlendi; algılanan fiziksel renk veya uzun süreli kararlılık ölçümü yapılmış değildir.
+Bu araştırmadaki hizalı kota düzeni, soldaki durum ikonları ve ayrı LED turuncusu renderer’a uygulandı. Sade, Tarama, Nefes, Matrix ve Kayan yazı seçenekleri hem native menüye hem web ekran ayarlarına eklendi. Güncel efekt kapsamı yukarıdaki ekte tanımlanır: RUN/QUEUE/DONE yazıları dahil, ASK/INPUT/ERROR hariç.
+
+İlk, arka plan hareketli Matrix sürümünde çalışan yerel köprü üzerinden yazı/gösterge piksellerinin korunduğu ve değişen karelerin USB onayı aldığı gözlendi. Bu gözlem yeni harf akışının fiziksel okunabilirlik testi değildir. Güncel harf akışı için de algılanan renk, okuma duraklarının yeterliliği ve uzun süreli kararlılık ölçümü ayrıca yapılmalıdır.
 
 [15 sentetik görünümün toplu çizimi](images/led-layouts.svg), gerçek renderer fonksiyonlarından üretilebilir. `python3 tools/preview_led.py --help` ile çevrimdışı etkileşimli HTML veya isteğe bağlı PNG çıktısı hazırlanır. Örnek veriler gerçek hesap kotası değildir.
+
+## Gerçek aktarım hızının düzeltilmesi
+
+Canlı cihazda kare onayları arasında yaklaşık 4,5 saniye ölçüldü. Studio LaunchAgent’ının `Background` işlem sınıfında, 19 kez tekrarlanan 5 ms run-loop + 10 ms bekleme deneyi USB olmadan da yaklaşık 3,86–3,95 saniye sürdü. Aynı deney normal işlem önceliğinde yaklaşık 0,33–0,34 saniyeydi. Activity token ve thread QoS tek başına Background politikasını aşmadı; bu etkisiz değişiklikler helper’a eklenmedi.
+
+Yalnız Studio arka plan servisi `Interactive` olarak kaydedildi. Global App Nap, güç tercihleri veya başka uygulamalar değiştirilmedi. Apple’ın yerel `launchd.plist(5)` kılavuzunda Adaptive geçişinin XPC bağlantılarına göre yapıldığı belirtilir; Studio HTTP ve stdin kullanır. Uygulamanın görünür yanıtı bu servise bağlı olduğu için Interactive seçildi. İşletim sistemi gerekçesi: [Apple App Nap açıklaması](https://developer.apple.com/library/archive/documentation/Performance/Conceptual/power_efficiency_guidelines_osx/AppNap.html).
+
+Düzeltmeden sonra gerçek USB’de arka arkaya ölçülen dört kare aralığı 0,863 / 0,869 / 0,866 / 0,867 saniyeydi. Bu kısa yerel örneklem, bütün cihazlar ve uzun oturumlar için performans garantisi değildir. ACK doğrulaması, 500 ms paket yanıt süresi, 10 ms paket aralığı, minimum kare aralığı ve hata sonrasında durma korunur.
+
+Animasyon ayrıca duvar saati yerine tamamlanan çizim/aktarım adımlarına göre ilerler. Böylece yavaş bir aktarım Matrix’in düşme fazlarını atlamaz. Uygulamadaki görünür LED önizlemesi yerel durumdan 500 ms aralıkla yenilenir; gizli sayfada bu aralık 5 saniyedir. Bu okuma sağlayıcılara yeni kota isteği göndermez.
+
+Son kurulu sürümde Kayan yazı seçiliyken RUN metninin 58 yanan pikselinin yer değiştirdiği, sağ kota göstergelerinin korunduğu ve aktarımın USB tarafından onaylandığı gözlendi. Örnek GIF/HTML çizimleri yine sentetiktir; gerçek LED rengi ve uzun süreli kararlılık hakkında ölçüm yerine geçmez.

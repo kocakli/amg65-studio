@@ -206,4 +206,5 @@ Sade	Plain	Sin efecto	无效果	効果なし
 Tarama	Scan	Barrido	扫描	スキャン
 Nefes	Breathing	Respiración	呼吸	ブリージング
 Matrix	Matrix	Matrix	矩阵	マトリックス
-Efektler yazı ve kota görünümüne uygulanır; onay ve bilgi istekleri sabit kalır.	Effects apply to text and quota views; approval and input requests stay steady.	Los efectos se aplican al texto y a las cuotas; las solicitudes de aprobación y de información permanecen fijas.	效果适用于文字和配额视图；审批和信息请求保持静态。	エフェクトは文字と残り利用枠に適用されます。承認や入力の要求は動かずに表示されます。
+Kayan yazı	Scrolling text	Texto desplazable	滚动文字	スクロール
+Efektler metin ve kota görünümlerinde kullanılır; onay, bilgi ve hata uyarıları sabit kalır.	Effects apply to text and quota views; approval, input and error alerts stay steady.	Los efectos se aplican al texto y a las cuotas; los avisos de aprobación, información y error permanecen fijos.	效果适用于文字和配额视图；审批、信息请求和错误提示保持静态。	エフェクトは文字と残り利用枠に適用されます。承認・入力の要求とエラー通知は動かずに表示されます。

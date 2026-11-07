@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Offline, synthetic LED previews using Studio's actual renderer.
 
-SVG/HTML use only the standard library. PNG is optional and requires Pillow in
+SVG/HTML use only the standard library. PNG/GIF are optional and require Pillow in
 the caller's environment; Pillow is not a Studio runtime dependency. No device,
 account, settings, cache, network or provider authentication is accessed.
 
@@ -13,13 +13,14 @@ import argparse
 from copy import deepcopy
 import html
 import json
+import math
 from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from renderer import (ACTIVITY_LABELS, HEIGHT, WIDTH, apply_text_effect, render_activity,
-                      render_detail, render_overview, render_text)
+                      render_detail, render_overview, render_text, text_width)
 
 SNAPSHOT = {'providers': [
     {'id':'claude', 'remaining_percent':98, 'stale':False},
@@ -29,7 +30,9 @@ SNAPSHOT = {'providers': [
 NAMES = {'claude':'Claude', 'codex':'Codex', 'cursor':'Cursor'}
 STATES = {'running':'Çalışıyor', 'queued':'Sırada', 'waiting_approval':'Onay bekliyor',
           'waiting_input':'Bilgi bekliyor', 'completed':'Tamamlandı', 'error':'Hata'}
-EFFECT_STEPS = {'scan':64, 'breathe':12, 'matrix':11}  # Complete production 2 Hz cycles.
+EFFECT_STEPS = {'scan':64, 'breathe':12, 'matrix':11, 'scroll':64}  # Complete 2 Hz cycles.
+ATTENTION_STATES = {'waiting_approval','waiting_input','error'}
+EXAMPLE_TEXT = 'AMG65 STUDIO'
 
 
 def fixtures():
@@ -49,14 +52,24 @@ def fixtures():
     stale['providers'][0]['stale'] = True
     frames['unknown'] = [render_overview(unknown, 1)]
     frames['stale'] = [render_overview(stale, 1)]
-    frames['text'] = [render_text('AMG65 STUDIO', '#7bdcb0', 1)]
+    frames['text'] = [render_text(EXAMPLE_TEXT, '#7bdcb0', 1)]
     for key, sequence in list(frames.items()):
-        if key.startswith('activity:'):
+        activity=key.startswith('activity:')
+        if activity and key.rsplit(':',1)[1] in ATTENTION_STATES:
             continue
-        for effect in ('scan','breathe','matrix'):
+        for effect in EFFECT_STEPS:
+            if key=='text' and effect=='scroll':
+                # The text renderer repeats the full phrase; applying a second
+                # image-scroll layer would double the movement and clip letters.
+                frames['effect:scroll:text'] = [
+                    render_text(EXAMPLE_TEXT, '#7bdcb0', 1, phase*.5, marquee=True)
+                    for phase in range(text_width(EXAMPLE_TEXT)+10)]
+                continue
+            period=57 if effect=='scroll' and activity else EFFECT_STEPS[effect]
             frames['effect:'+effect+':'+key] = [
-                apply_text_effect(sequence[0], effect, 1, phase*.5)
-                for phase in range(EFFECT_STEPS[effect])]
+                apply_text_effect(sequence[phase%len(sequence)], effect, 1, phase*.5,
+                                  left=7 if activity else 0)
+                for phase in range(math.lcm(period,len(sequence)))]
     for sequence in frames.values():
         for frame in sequence:
             if len(frame) != WIDTH*HEIGHT or any(len(pixel)!=3 or any(not isinstance(v,int) or not 0<=v<=254 for v in pixel) for pixel in frame):
@@ -79,7 +92,10 @@ ROWS = [
     ('text','Kişisel metin','AMG65 STUDIO','Sağdaki T: metin modu'),
     ('effect:scan:text','Tarama · SCAN','Metnin üzerinde ışık geçişi','Yalnızca yanan pikseller değişir'),
     ('effect:breathe:text','Nefes · BREATHE','Hafif parlaklık döngüsü','Harfler yerinde ve okunur kalır'),
-    ('effect:matrix:text','Matrix','Yazının arkasında soluk yağmur','Harfler ve sağdaki gösterge korunur'),
+    ('effect:matrix:text','Matrix · metin','Harfler aşağı akar','Okuma arası + sabit sağ gösterge'),
+    ('effect:matrix:activity:claude:running','Matrix · Claude RUN','Ad ve durum harfleri aşağı akar','Sol iş simgesi + kota göstergeleri korunur'),
+    ('effect:scroll:text','Kayan yazı · metin','Kısa metin de sola doğru akar','Tüm ifade boşlukla tekrarlanır'),
+    ('effect:scroll:activity:codex:running','Kayan yazı · Codex RUN','Ad ve durum sola doğru kayar','Sol iş simgesi + kota göstergeleri korunur'),
 ]
 
 SHEET_WIDTH, SHEET_HEIGHT = 1240, 340+len(ROWS)*130
@@ -88,7 +104,7 @@ PANEL_X, PANEL_WIDTH, PITCH = 343, 845, 12.8
 
 def sheet_frame(frames, key):
     sequence=frames[key]
-    return sequence[6 if key.startswith('effect:') else 0]
+    return sequence[2 if key.startswith('effect:matrix:') else 6 if key.startswith('effect:') else 0]
 
 
 def svg_sheet(frames):
@@ -143,7 +159,7 @@ HTML_TEMPLATE = r'''<!doctype html>
   <label>Görünüm<select id="mode"><option value="overview">Tüm kotalar</option><option value="detail">Sağlayıcı detayı</option><option value="activity">İş durumu</option><option value="unknown">Bilinmeyen kota</option><option value="stale">Eski kota verisi</option><option value="text">Kişisel metin</option></select></label>
   <label>Sağlayıcı<select id="provider"><option value="claude">Claude</option><option value="codex">Codex</option><option value="cursor">Cursor</option></select></label>
   <label>İş durumu<select id="state"><option value="running">RUN · Çalışıyor</option><option value="queued">QUEUE · Sırada</option><option value="waiting_approval">ASK · Onay bekliyor</option><option value="waiting_input">INPUT · Bilgi bekliyor</option><option value="completed">DONE · Tamamlandı</option><option value="error">ERROR · Hata</option></select></label>
-  <label>Metin efekti<select id="effect"><option value="none">Sade · efekt yok</option><option value="scan">Tarama</option><option value="breathe">Nefes</option><option value="matrix">Matrix</option></select></label>
+  <label>Metin efekti<select id="effect"><option value="none">Sade · efekt yok</option><option value="scan">Tarama</option><option value="breathe">Nefes</option><option value="matrix">Matrix</option><option value="scroll">Kayan yazı</option></select></label>
   <label><span class="range-label">Önizleme parlaklığı <output id="brightness-label" for="brightness">%75</output></span><input id="brightness" type="range" min="0" max="100" step="1" value="75" aria-label="Önizleme parlaklığı"></label>
  </div>
  <div class="context"><p id="explanation">Üç sağlayıcının kalan hakları aynı anda görünür.</p><button id="motion" type="button" aria-pressed="true">Hareket: açık</button></div>
@@ -151,7 +167,7 @@ HTML_TEMPLATE = r'''<!doctype html>
 <div class="legend" aria-label="Sentetik kalan haklar"><span><i class="dot" style="background:var(--orange)"></i>A · Claude<b>%98</b></span><span><i class="dot" style="background:var(--mint)"></i>X · Codex<b>%46</b></span><span><i class="dot" style="background:var(--blue)"></i>C · Cursor<b>%54</b></span></div>
 <div class="section-head"><h2>Düzen kataloğu</h2><small>Gerçek renderer kareleri · katalog parlaklığı %100</small></div>
 <div class="gallery" id="gallery"></div>
-<p class="foot"><span class="note">Değerlerin tamamı sentetik örnektir; gerçek hesap veya kullanım bilgisi değildir.</span><br>Bu dosya ağ isteği yapmaz, klavyeye bağlanmaz ve ayar değiştirmez. Parlaklık kaydırıcısı önceden üretilmiş RGB değerlerini doğrusal ölçekler. Fiziksel LED renk/parlaklık ölçümü değildir; gerçek cihazın optiği ve ekranınızın renk işleme biçimi farklı görünebilir. RUN animasyonunda yalnızca soldaki simge hareket eder.</p>
+<p class="foot"><span class="note">Değerlerin tamamı sentetik örnektir; gerçek hesap veya kullanım bilgisi değildir.</span><br>Bu dosya ağ isteği yapmaz, klavyeye bağlanmaz ve ayar değiştirmez. Parlaklık kaydırıcısı önceden üretilmiş RGB değerlerini doğrusal ölçekler. Fiziksel LED renk/parlaklık ölçümü değildir; gerçek cihazın optiği ve ekranınızın renk işleme biçimi farklı görünebilir. Sade modda RUN simgesi hareket eder. Metin efektleri RUN/QUEUE/DONE ekranlarında ad ve duruma uygulanır; sol simge ile sağ kota göstergeleri korunur. ASK/INPUT/ERROR ekranları sabit kalır.</p>
 </main>
 <script type="application/json" id="frame-data">__DATA__</script>
 <script>
@@ -162,16 +178,17 @@ function matrix(svg,frame,brightness=1){
  const desc=svg.querySelector('desc');svg.replaceChildren();if(desc)svg.append(desc);
  frame.forEach((rgb,index)=>{const node=document.createElementNS(NS,'circle');node.setAttribute('cx',String(6+(index%63)*12));node.setAttribute('cy',String(6+Math.floor(index/63)*12));node.setAttribute('r','3.8');const value=rgb.map(v=>Math.round(v*brightness));node.setAttribute('fill',value.some(Boolean)?`rgb(${value.join(',')})`:'#18232f');svg.append(node);});
 }
-function key(){const mode=$('mode').value,base=mode==='activity'?`activity:${$('provider').value}:${$('state').value}`:mode==='detail'?`detail:${$('provider').value}`:mode;return mode!=='activity'&&$('effect').value!=='none'?`effect:${$('effect').value}:${base}`:base;}
-const explanations={overview:'Üç sağlayıcının kalan hakları aynı anda görünür.',detail:'Seçilen sağlayıcının tam adı, kalan yüzdesi ve sağda tek kota bloğu.',activity:'5 px simge → sağlayıcı adı → durum kodu. Sağdaki üç kota göstergesi sabit kalır.',unknown:'Claude kotası bilinmiyor: -- ve orta nokta. Bilinmeyen değer sıfıra çevrilmez.',stale:'Claude kotası eski: değer soluk, hücre sonunda sarı işaret. Diğer iki kota güncel örnektir.',text:'Kısa örnek metin ortalanır. Sağdaki T simgesi metin modunu belirtir.'};
-const effectNotes={none:'',scan:' Tarama yalnızca yanan piksellerin parlaklığını değiştirir.',breathe:' Nefes efekti parlaklığı hafifçe değiştirir.',matrix:' Soluk Matrix yağmuru metnin arkasında hareket eder.'};
+function effectProtected(){return $('mode').value==='activity'&&['waiting_approval','waiting_input','error'].includes($('state').value);}
+function key(){const mode=$('mode').value,base=mode==='activity'?`activity:${$('provider').value}:${$('state').value}`:mode==='detail'?`detail:${$('provider').value}`:mode;return !effectProtected()&&$('effect').value!=='none'?`effect:${$('effect').value}:${base}`:base;}
+const explanations={overview:'Üç sağlayıcının kalan hakları aynı anda görünür.',detail:'Seçilen sağlayıcının tam adı, kalan yüzdesi ve sağda tek kota bloğu.',activity:'5 px simge → sağlayıcı adı → durum kodu. Sağdaki üç kota göstergesi sabit kalır.',unknown:'Claude kotası bilinmiyor: -- ve orta nokta. Bilinmeyen değer sıfıra çevrilmez.',stale:'Claude kotası eski: değer soluk, hücre sonunda sarı işaret. Diğer iki kota güncel örnektir.',text:'Sağdaki T simgesi metin modunu belirtir. Kayan yazı seçeneği kısa metinleri de hareket ettirir.'};
+const effectNotes={none:'',scan:' Tarama yalnızca yanan piksellerin parlaklığını değiştirir.',breathe:' Nefes efekti parlaklığı hafifçe değiştirir.',matrix:' Harfler gruplar halinde aşağı akar; her dalganın ardından okuma arası verilir.',scroll:' Kısa metinler de sola doğru akar; ifade boşlukla tekrarlanır.'};
 const titles={overview:'Genel görünüm',detail:'Sağlayıcı detayı',activity:'İş durumu',unknown:'Bilinmeyen kota',stale:'Eski kota verisi',text:'Kişisel metin'};
-function render(){const mode=$('mode').value,sequence=data.frames[key()],brightness=Number($('brightness').value)/100;matrix($('preview'),sequence[(animate?phase:0)%sequence.length],brightness);$('brightness-label').textContent='%'+$('brightness').value;$('provider').disabled=!['activity','detail'].includes(mode);$('state').disabled=mode!=='activity';$('effect').disabled=mode==='activity';$('explanation').textContent=explanations[mode]+(mode==='activity'?' Ek metin efektleri iş durumu ekranına uygulanmaz.':effectNotes[$('effect').value]);$('view-title').textContent=mode==='activity'?data.names[$('provider').value]+' · '+data.labels[$('state').value]:mode==='detail'?data.names[$('provider').value]+' · kota detayı':titles[mode];$('layout-label').textContent=mode==='activity'?'SİMGE 0–4 · AD 7–29 · DURUM 32–52':'A / CLAUDE · X / CODEX · C / CURSOR';$('preview-description').textContent=$('view-title').textContent+'. '+explanations[mode]+' Tamamen sentetik örnek veriler.';}
+function render(){const mode=$('mode').value,sequence=data.frames[key()],brightness=Number($('brightness').value)/100;matrix($('preview'),sequence[(animate?phase:0)%sequence.length],brightness);$('brightness-label').textContent='%'+$('brightness').value;$('provider').disabled=!['activity','detail'].includes(mode);$('state').disabled=mode!=='activity';$('effect').disabled=effectProtected();$('explanation').textContent=explanations[mode]+(effectProtected()?' Onay, bilgi bekleme ve hata durumları okunabilirlik için sabit kalır.':effectNotes[$('effect').value]);$('view-title').textContent=mode==='activity'?data.names[$('provider').value]+' · '+data.labels[$('state').value]:mode==='detail'?data.names[$('provider').value]+' · kota detayı':titles[mode];$('layout-label').textContent=mode==='activity'?'SİMGE 0–4 · AD 7–29 · DURUM 32–52':'A / CLAUDE · X / CODEX · C / CURSOR';$('preview-description').textContent=$('view-title').textContent+'. '+explanations[mode]+' Tamamen sentetik örnek veriler.';}
 for(const id of ['mode','provider','state','effect','brightness'])$(id).addEventListener('input',render);
 $('motion').addEventListener('click',()=>{animate=!animate;$('motion').setAttribute('aria-pressed',String(animate));$('motion').textContent=animate?'Hareket: açık':'Hareket: kapalı';render();});
-for(const [k,title,subtitle,note] of data.rows){const card=document.createElement('article');card.className='tile';const head=document.createElement('div');head.className='tile-head';const strong=document.createElement('strong');strong.textContent=title;const small=document.createElement('small');small.textContent='63 × 5';head.append(strong,small);const frame=document.createElement('div');frame.className='matrix-frame';const svg=document.createElementNS(NS,'svg');svg.classList.add('matrix');svg.setAttribute('viewBox','0 0 756 60');svg.setAttribute('role','img');svg.setAttribute('aria-label',title+' — sentetik örnek');matrix(svg,data.frames[k][k.startsWith('effect:')?6:0]);frame.append(svg);const caption=document.createElement('p');caption.textContent=subtitle+' · '+note;card.append(head,frame,caption);$('gallery').append(card);}
+for(const [k,title,subtitle,note] of data.rows){const card=document.createElement('article');card.className='tile';const head=document.createElement('div');head.className='tile-head';const strong=document.createElement('strong');strong.textContent=title;const small=document.createElement('small');small.textContent='63 × 5';head.append(strong,small);const frame=document.createElement('div');frame.className='matrix-frame';const svg=document.createElementNS(NS,'svg');svg.classList.add('matrix');svg.setAttribute('viewBox','0 0 756 60');svg.setAttribute('role','img');svg.setAttribute('aria-label',title+' — sentetik örnek');matrix(svg,data.frames[k][k.startsWith('effect:matrix:')?2:k.startsWith('effect:')?6:0]);frame.append(svg);const caption=document.createElement('p');caption.textContent=subtitle+' · '+note;card.append(head,frame,caption);$('gallery').append(card);}
 if(matchMedia('(prefers-reduced-motion: reduce)').matches){animate=false;$('motion').textContent='Hareket: kapalı';$('motion').setAttribute('aria-pressed','false');}
-render();setInterval(()=>{if(animate&&document.visibilityState==='visible'&&(($('mode').value==='activity'&&$('state').value==='running')||($('mode').value!=='activity'&&$('effect').value!=='none'))){phase+=1;render();}},500);
+render();setInterval(()=>{if(animate&&document.visibilityState==='visible'&&(($('mode').value==='activity'&&$('state').value==='running')||(!effectProtected()&&$('effect').value!=='none'))){phase+=1;render();}},500);
 </script></html>'''
 
 
@@ -212,11 +229,40 @@ def png_sheet(frames, path):
     image.save(path, 'PNG', optimize=True)
 
 
+def gif_matrix(frames, path, effect='matrix'):
+    """Compact 2 Hz animation of an actual Matrix or marquee text cycle."""
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError as error:
+        raise SystemExit('GIF export needs optional Pillow; SVG and HTML need only Python stdlib.') from error
+    font_path=next((p for p in (Path('/System/Library/Fonts/Supplemental/Arial.ttf'),
+                               Path('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf')) if p.is_file()),None)
+    def font(size):
+        return ImageFont.truetype(str(font_path),size) if font_path else ImageFont.load_default(size=size)
+    images=[]
+    for phase,frame in enumerate(frames['effect:'+effect+':text']):
+        image=Image.new('RGB',(960,236),'#090f16');draw=ImageDraw.Draw(image)
+        title='MATRIX · HARFLER AŞAĞI AKAR' if effect=='matrix' else 'KAYAN YAZI · KISA METİN DE AKAR'
+        draw.text((28,22),title,font=font(23),fill='#edf5fc')
+        draw.text((28,57),'AMG65 STUDIO  /  63 × 5  /  GERÇEK RENDERER',font=font(11),fill='#94a9bd')
+        draw.rounded_rectangle((24,87,936,182),12,fill='#05090e',outline='#304152')
+        for index,rgb in enumerate(frame):
+            x=46+(index%WIDTH)*14;y=107+(index//WIDTH)*14
+            draw.ellipse((x-4.5,y-4.5,x+4.5,y+4.5),fill=tuple(rgb) if any(rgb) else '#18232f')
+        state=('OKUMA ARASI' if phase>=7 else 'HARF AKIŞI') if effect=='matrix' else 'SOLA KAYIYOR'
+        draw.text((28,204),'ÖRNEK METİN · 2 KARE/SN · FİZİKSEL RENK ÖLÇÜMÜ DEĞİLDİR',font=font(11),fill='#94a9bd')
+        draw.text((931,204),state,font=font(11),fill='#7bdcb0',anchor='ra')
+        images.append(image)
+    images[0].save(path,'GIF',save_all=True,append_images=images[1:],duration=500,loop=0,disposal=2,optimize=True)
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--svg',type=Path,default=ROOT/'docs/images/led-layouts.svg')
     parser.add_argument('--html',type=Path)
     parser.add_argument('--png',type=Path)
+    parser.add_argument('--gif',type=Path)
+    parser.add_argument('--scroll-gif',type=Path)
     args=parser.parse_args();frames=fixtures()
     args.svg.parent.mkdir(parents=True,exist_ok=True);args.svg.write_text(svg_sheet(frames),encoding='utf-8')
     print(args.svg)
@@ -224,6 +270,10 @@ def main():
         args.html.parent.mkdir(parents=True,exist_ok=True);args.html.write_text(html_preview(frames),encoding='utf-8');print(args.html)
     if args.png:
         args.png.parent.mkdir(parents=True,exist_ok=True);png_sheet(frames,args.png);print(args.png)
+    if args.gif:
+        args.gif.parent.mkdir(parents=True,exist_ok=True);gif_matrix(frames,args.gif);print(args.gif)
+    if args.scroll_gif:
+        args.scroll_gif.parent.mkdir(parents=True,exist_ok=True);gif_matrix(frames,args.scroll_gif,'scroll');print(args.scroll_gif)
 
 
 if __name__=='__main__':
