@@ -111,4 +111,4 @@ Araştırma sırasında dış projeler **kurulmadı**, kod veya sprite varlıkla
 
 ## Kurulu sürüm doğrulaması
 
-Bu çalışma sonunda sürüm15 kuruldu; 159 Python testi, 169 native kontrol ve 12 native yerelleştirme testi geçti. Kullanıcıya ait kurulumda `claude_mascot` tercihi açıldı. Olay seçimi ve USB aktarımı mevcut köprüde devam ediyor. Yürüyüş GIF’i ve altı durum görseli gerçek renderer fonksiyonlarından üretilmiş sentetik önizlemelerdir; yeni bir çalışan Claude olayı oluşturulmadı. Maskotun tetiklenmesi gerçek Claude etkinlik sinyaline bağlıdır.
+Bu çalışma sonunda sürüm16 kuruldu; 163 Python testi, 185 native kontrol ve 12 native yerelleştirme testi geçti. Kullanıcıya ait kurulumda `claude_mascot` tercihi açıldı. Olay seçimi ve USB aktarımı mevcut köprüde devam ediyor. Yürüyüş GIF’i ve altı durum görseli gerçek renderer fonksiyonlarından üretilmiş sentetik önizlemelerdir; yeni bir çalışan Claude olayı oluşturulmadı. Maskotun tetiklenmesi gerçek Claude etkinlik sinyaline bağlıdır. Gösterilecek araç seçicisinde Otomatik/Claude/Codex/Cursor odağı bulunur; odaklı mod seçilen aracın durum ve çalışma adımlarını gösterir.

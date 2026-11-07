@@ -599,11 +599,23 @@ private struct MenuDisplayControls:View {
     var body:some View {
         VStack(alignment:.leading,spacing:19) {
             Toggle(L("Canlı LED görünümü"),isOn:$model.enabled)
-            Picker(L("Görünüm"),selection:$model.draft.displayMode) {
-                Text(L("Toplu görünüm")).tag("overview")
-                Text(L("Sırayla göster")).tag("rotate")
-                Text(L("Özel metin")).tag("text")
-            }.pickerStyle(.menu)
+            VStack(alignment:.leading,spacing:7) {
+                Picker(L("Gösterilecek araç"),selection:$model.draft.trackedProvider) {
+                    Text(L("Otomatik")).tag("all")
+                    Text("Claude").tag("claude")
+                    Text("Codex").tag("codex")
+                    Text("Cursor").tag("cursor")
+                }.pickerStyle(.menu)
+                Text(L("Seçilen aracın durumları ve çalışma adımları gösterilir."))
+                    .font(.system(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+            }
+            if model.draft.trackedProvider == "all" {
+                Picker(L("Görünüm"),selection:$model.draft.displayMode) {
+                    Text(L("Toplu görünüm")).tag("overview")
+                    Text(L("Sırayla göster")).tag("rotate")
+                    Text(L("Özel metin")).tag("text")
+                }.pickerStyle(.menu)
+            }
             VStack(alignment:.leading,spacing:7) {
                 Picker(L("Yazı efekti"),selection:$model.draft.textEffect) {
                     Text(L("Sade")).tag("none")
@@ -615,7 +627,7 @@ private struct MenuDisplayControls:View {
                 Text(L("Efektler metin ve kota görünümlerinde kullanılır; onay, bilgi ve hata uyarıları sabit kalır."))
                     .font(.system(size:10)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
             }
-            if model.draft.displayMode == "text" {
+            if model.draft.trackedProvider == "all" && model.draft.displayMode == "text" {
                 VStack(alignment:.leading,spacing:7) {
                     TextField(L("Özel metin"),text:$model.draft.text).textFieldStyle(.roundedBorder)
                     Text(L("En fazla 64 ASCII karakter. LED metni büyük harfle gösterilir."))

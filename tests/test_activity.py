@@ -182,6 +182,18 @@ class ActivityStoreTests(unittest.TestCase):
         self.assertEqual(len(self.store.read()), 1)
         self.assertFalse(list(self.path.glob(".activity-*")))
 
+    def test_matching_tool_result_preserves_observed_category_without_guessing_other_calls(self):
+        def tool_event(kind,at,call_id,name=None):
+            payload={'type':kind,'turn_id':'private-turn-id','call_id':call_id}
+            if name:payload['name']=name
+            return normalize_codex_record({'timestamp':datetime.fromtimestamp(at,timezone.utc).isoformat(),
+                                           'type':'response_item','payload':payload},'private-session-id',at)
+        self.store.record(tool_event('function_call',NOW,'call-a','read_file'))
+        self.store.record(tool_event('function_call_output',NOW+1,'call-a'))
+        self.assertEqual(self.store.read()[0].summary,'reading_files')
+        self.store.record(tool_event('function_call_output',NOW+2,'call-other'))
+        self.assertEqual(self.store.read()[0].summary,'using_tool')
+
     def test_expiry_unknown_and_no_selected(self):
         self.store.record(hook())
         self.assertEqual(self.collector.snapshot()["selected"]["state"], "running")

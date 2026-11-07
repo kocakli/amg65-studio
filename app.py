@@ -340,15 +340,20 @@ class Application:
                 phase = int(tick - started) % 24
                 mode=self.settings['display_mode']
                 brightness=self.settings['brightness']
+                tracked=self.settings.get('tracked_provider','all')
                 # Advance one visual step per rendered/acknowledged iteration.
                 # A slow USB frame must not jump over the falling-letter phases.
                 animation_elapsed=animation_step/2
-                activity=select_activity(snapshot.get('activity'),tick-started) if self.settings.get('activity_enabled',True) else None
+                activity=select_activity(snapshot.get('activity'),tick-started,provider=tracked) if self.settings.get('activity_enabled',True) else None
                 mascot=bool(activity and activity.get('provider')=='claude' and self.settings.get('claude_mascot',False))
                 if activity:
                     pixels=(render_claude_mascot if mascot else render_activity)(activity,snapshot,brightness,animation_elapsed)
                     view='activity'
                     with self.lock: self.state['activity']['selected']=activity
+                elif tracked!='all':
+                    provider=next((row for row in snapshot['providers'] if row['id']==tracked),{'id':tracked})
+                    pixels=render_detail(provider,brightness)
+                    view=tracked
                 elif mode=='text':
                     pixels=render_text(self.settings['text'],self.settings['text_color'],brightness,animation_elapsed,
                                        marquee=self.settings.get('text_effect')=='scroll')
@@ -364,7 +369,8 @@ class Application:
                     pixels=apply_text_effect(pixels,self.settings.get('text_effect','none'),brightness,animation_elapsed,
                                              left=7 if activity else 0)
                 with self.lock:
-                    self.state['matrix'] = {'pixels':pixels, 'view':view}
+                    self.state['matrix'] = {'pixels':pixels, 'view':view,
+                                            'activity':{key:activity.get(key) for key in ('provider','state','summary')} if activity else None}
                 if self.display and self.bridge and pixels != last_pixels:
                     result = self.bridge.send('frame', pixels=pixels)
                     self.device_status(connected=True, message='LED aktarımı etkin · USB onaylı',

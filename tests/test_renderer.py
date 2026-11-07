@@ -50,6 +50,30 @@ if __name__ == "__main__":
     unittest.main()
 
 class ActivityRendererTests(unittest.TestCase):
+    def test_selected_tool_is_never_replaced_by_another_tool_or_a_quota_time_slot(self):
+        from renderer import select_activity
+        rows={'providers':[{'provider':'claude','state':'running','expires_at':200},
+                           {'provider':'codex','state':'waiting_approval','expires_at':200}]}
+        for elapsed in (0,4,7,9,16):
+            self.assertEqual(select_activity(rows,elapsed,100,provider='claude')['provider'],'claude')
+        self.assertEqual(select_activity(rows,7,100)['provider'],'codex')
+        self.assertIsNone(select_activity(rows,7,201,provider='claude'))
+        self.assertIsNone(select_activity(rows,7,100,provider='cursor'))
+
+    def test_observed_work_categories_have_distinct_fixed_labels(self):
+        from renderer import activity_label,WORK_LABELS,render_activity,render_claude_mascot,text_width
+        self.assertTrue(all(text_width(label)<=20 for label in WORK_LABELS.values()))
+        frames=[]
+        for summary,label in WORK_LABELS.items():
+            row={'provider':'claude','state':'running','summary':summary}
+            self.assertEqual(activity_label(row),label)
+            frames.append(render_activity(row,{},1))
+            mascot=render_claude_mascot(row,{},1)
+            self.assertEqual([mascot[y*63+32:y*63+53] for y in range(5)],
+                             [frames[-1][y*63+32:y*63+53] for y in range(5)])
+        self.assertEqual(len(set(tuple(frame) for frame in frames)),len(WORK_LABELS))
+        self.assertEqual(activity_label({'state':'running','summary':'PRIVATE COMMAND'}),'RUN')
+
     def test_attention_preempts_running_and_expired_states_disappear(self):
         from renderer import select_activity
         activity={'providers':[

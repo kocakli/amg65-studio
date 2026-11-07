@@ -3,7 +3,8 @@ import math
 import re
 
 DEFAULTS = {'display_mode':'overview','brightness':0.4,'text':'AMG65 STUDIO',
-            'text_color':'#7bdcb0','text_effect':'none','activity_enabled':True,'claude_mascot':False}
+            'text_color':'#7bdcb0','text_effect':'none','activity_enabled':True,'claude_mascot':False,
+            'tracked_provider':'all'}
 LIGHTING = {'mode':1,'color':'#7bdcb0','brightness':3,'speed':3,'colorful':False}
 
 def color(value):
@@ -19,6 +20,8 @@ def settings_patch(value):
         raise ValueError('Geçersiz ekran modu.')
     if 'text_effect' in value and value['text_effect'] not in ('none','scan','breathe','matrix','scroll'):
         raise ValueError('Geçersiz yazı efekti.')
+    if 'tracked_provider' in value and value['tracked_provider'] not in ('all','claude','codex','cursor'):
+        raise ValueError('Geçersiz araç seçimi.')
     if 'brightness' in value:
         b=value['brightness']
         if type(b) not in (int,float) or not math.isfinite(b) or not 0<=b<=1:

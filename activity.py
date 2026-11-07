@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timedelta
 from pathlib import Path
 import fcntl
@@ -212,6 +212,13 @@ def _valid_event(row: object) -> ActivityEvent | None:
 def _merge(events: dict[str, ActivityEvent], incoming: ActivityEvent) -> None:
     old = events.get(incoming.key)
     if old and old.observed_at > incoming.observed_at: return
+    # Codex output records omit the tool name. Preserve an observed category only
+    # for the exact matching tool call; a generic/different call must stay generic.
+    if (old and old.state == incoming.state == "running" and incoming.summary == "using_tool"
+            and incoming.event in {"function_call_output", "custom_tool_call_output"}
+            and old.summary in {"running_command", "reading_files", "editing_files", "searching"}
+            and old.wait_token and old.wait_token == incoming.wait_token):
+        incoming = replace(incoming, summary=old.summary)
     # A tail discovered after a hook must not resurrect an already-ended turn.
     if any(event.key != incoming.key and event.provider == incoming.provider
            and event.session_id == incoming.session_id and event.observed_at >= incoming.observed_at

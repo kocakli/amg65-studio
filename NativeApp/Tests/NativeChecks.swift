@@ -204,6 +204,20 @@ import Darwin
         let legacySettings=try JSONDecoder().decode(MenuDisplaySettings.self,from:Data(##"{"display_mode":"text","brightness":0.4,"text":"DRAFT","text_color":"#ffffff","activity_enabled":true}"##.utf8))
         check(legacySettings.textEffect=="none" && legacySettings.text=="DRAFT" && legacySettings.valid,"legacy bridge settings default missing text effect to none")
         check(!legacySettings.claudeMascot && !initialSettings.claudeMascot,"mascot defaults off for new and legacy settings")
+        check(legacySettings.trackedProvider=="all" && initialSettings.trackedProvider=="all","provider focus defaults to automatic for new and legacy settings")
+        for provider in ["all","claude","codex","cursor"] {
+            var settings=initialSettings;settings.trackedProvider=provider
+            let decoded=try JSONDecoder().decode(MenuDisplaySettings.self,from:JSONEncoder().encode(settings))
+            check(decoded==settings && decoded.valid,"provider focus round trip: \(provider)")
+        }
+        var malformedFocus=(try JSONSerialization.jsonObject(with:JSONEncoder().encode(initialSettings))) as! [String:Any]
+        for value:Any in [1,true,NSNull()] {
+            malformedFocus["tracked_provider"]=value
+            var rejected=false
+            do { _ = try JSONDecoder().decode(MenuDisplaySettings.self,from:JSONSerialization.data(withJSONObject:malformedFocus)) }
+            catch { rejected=true }
+            check(rejected,"provider focus rejects nonstring JSON value")
+        }
         for enabled in [false,true] {
             var settings=initialSettings;settings.claudeMascot=enabled
             let encoded=try JSONEncoder().encode(settings)
@@ -256,6 +270,20 @@ import Darwin
         check(!display.draft.claudeMascot && display.draft.text=="new mascot draft" && display.dirty,"late mascot acknowledgement preserves newer toggle and text")
         display.discard()
         check(display.draft==mascotAck && !display.dirty,"discard restores acknowledged mascot preference")
+        let beforeFocus=settingsRequests
+        display.draft.displayMode="text";display.draft.text="focus draft";display.draft.trackedProvider="claude"
+        display.receive(displaySnapshot(mascotAck))
+        check(display.draft.text=="focus draft" && display.draft.displayMode=="text" && display.draft.trackedProvider=="claude" && display.dirty && settingsRequests==beforeFocus,"provider selection preserves hidden text draft and does not send before Apply")
+        await display.save()
+        check(sentSettings["tracked_provider"] as? String=="claude" && sentSettings["display_mode"] as? String=="text" && sentSettings["text"] as? String=="FOCUS DRAFT","Apply submits focus and preserved general view preferences")
+        var focusAck=display.draft;focusAck.text="FOCUS DRAFT"
+        display.draft.trackedProvider="cursor";display.draft.text="new focus draft"
+        display.receive(displaySnapshot(focusAck))
+        check(display.draft.trackedProvider=="cursor" && display.draft.text=="new focus draft" && display.dirty,"late focus acknowledgement preserves newer provider and text draft")
+        display.discard()
+        check(display.draft==focusAck && !display.dirty,"discard restores acknowledged provider preference")
+        display.draft.trackedProvider="all"
+        check(display.draft.displayMode=="text" && display.draft.text=="FOCUS DRAFT","returning to Automatic restores stored general view and text")
         var invalid=initialSettings;invalid.text="非ASCII"
         check(!invalid.valid,"unsupported LED text rejected before submission")
         invalid=initialSettings;invalid.brightness=Double.nan
@@ -265,6 +293,10 @@ import Darwin
         let beforeInvalid=settingsRequests
         display.draft=invalid;await display.save()
         check(settingsRequests==beforeInvalid,"invalid effect never submits settings")
+        invalid=initialSettings;invalid.trackedProvider="unknown"
+        check(!invalid.valid,"unknown provider focus rejected")
+        display.draft=invalid;await display.save()
+        check(settingsRequests==beforeInvalid,"invalid provider focus never submits settings")
         check(MenuAccountsModel.authorizationURL("https://auth.openai.com/codex/device",provider:"codex") != nil,"Codex device sign-in URL accepted")
         check(MenuAccountsModel.authorizationURL("https://claude.ai/oauth/authorize?state=test",provider:"claude") != nil,"Claude provider authorization URL accepted")
         check(MenuAccountsModel.authorizationURL("https://claude.com/cai/oauth/authorize?code_challenge_method=S256",provider:"claude") != nil,"modern Claude direct-auth URL accepted")

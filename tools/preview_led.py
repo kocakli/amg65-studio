@@ -19,7 +19,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from renderer import (ACTIVITY_LABELS, HEIGHT, WIDTH, apply_text_effect, render_activity,
+from renderer import (ACTIVITY_LABELS, HEIGHT, WIDTH, activity_label, apply_text_effect, render_activity,
                       render_claude_mascot, render_detail, render_overview, render_text, text_width)
 
 SNAPSHOT = {'providers': [
@@ -34,6 +34,16 @@ EFFECT_STEPS = {'scan':64, 'breathe':12, 'matrix':11, 'scroll':64}  # Complete 2
 ATTENTION_STATES = {'waiting_approval','waiting_input','error'}
 EXAMPLE_TEXT = 'AMG65 STUDIO'
 MASCOT_STEPS = 12
+WORK_STEPS = {
+    'working':('RUN','Çalışıyor'),
+    'searching':('FIND','Arama yapıyor'),
+    'reading_files':('READ','Dosya okuyor'),
+    'editing_files':('EDIT','Dosya düzenliyor'),
+    'running_command':('EXEC','Komut çalıştırıyor'),
+    'using_tool':('TOOL','Araç kullanıyor'),
+    'compacting':('CTX','Bağlamı düzenliyor'),
+    'input_received':('READY','Bilgi alındı'),
+}
 
 
 def fixtures():
@@ -76,6 +86,14 @@ def fixtures():
         frames['mascot:'+state] = [
             render_claude_mascot({'provider':'claude','state':state}, SNAPSHOT, 1, phase*.5)
             for phase in range(MASCOT_STEPS if state=='running' else 2 if state=='completed' else 1)]
+    for summary in WORK_STEPS:
+        for provider in NAMES:
+            frames['step:activity:'+provider+':'+summary] = [
+                render_activity({'provider':provider,'state':'running','summary':summary}, SNAPSHOT, 1, phase*.5)
+                for phase in range(4)]
+        frames['step:mascot:'+summary] = [
+            render_claude_mascot({'provider':'claude','state':'running','summary':summary}, SNAPSHOT, 1, phase*.5)
+            for phase in range(MASCOT_STEPS)]
     for sequence in frames.values():
         for frame in sequence:
             if len(frame) != WIDTH*HEIGHT or any(len(pixel)!=3 or any(not isinstance(v,int) or not 0<=v<=254 for v in pixel) for pixel in frame):
@@ -106,7 +124,12 @@ ROWS = [
     ('effect:matrix:activity:claude:running','Matrix · Claude RUN','Ad ve durum harfleri aşağı akar','Sol iş simgesi + kota göstergeleri korunur'),
     ('effect:scroll:text','Kayan yazı · metin','Kısa metin de sola doğru akar','Tüm ifade boşlukla tekrarlanır'),
     ('effect:scroll:activity:codex:running','Kayan yazı · Codex RUN','Ad ve durum sola doğru kayar','Sol iş simgesi + kota göstergeleri korunur'),
-] + MASCOT_ROWS
+] + MASCOT_ROWS + [
+    ('step:activity:codex:running_command','Codex · EXEC','Komut çalıştırıyor','Örnek adım; komut içeriği gösterilmez'),
+    ('step:mascot:reading_files','Claude maskotu · READ','Dosya okuyor','Örnek adım; dosya adı gösterilmez'),
+    ('step:mascot:editing_files','Claude maskotu · EDIT','Dosya düzenliyor','Örnek adım; dosya içeriği gösterilmez'),
+    ('step:activity:cursor:searching','Cursor · FIND','Arama yapıyor','Örnek adım; arama metni gösterilmez'),
+]
 
 SHEET_WIDTH, SHEET_HEIGHT = 1240, 340+len(ROWS)*130
 PANEL_X, PANEL_WIDTH, PITCH = 343, 845, 12.8
@@ -318,6 +341,33 @@ def mascot_artifacts(frames, png_path=None, gif_path=None):
         images[0].save(gif_path,'GIF',save_all=True,append_images=images[1:],duration=500,loop=0,disposal=2,optimize=True)
 
 
+def gif_work_steps(frames, path):
+    """Synthetic summary categories, never an inferred live task history."""
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError as error:
+        raise SystemExit('Work-step GIF export needs optional Pillow.') from error
+    font_path=next((p for p in (Path('/System/Library/Fonts/Supplemental/Arial.ttf'),
+                               Path('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf')) if p.is_file()),None)
+    def font(size):
+        return ImageFont.truetype(str(font_path),size) if font_path else ImageFont.load_default(size=size)
+    images=[]
+    for summary,(code,label) in WORK_STEPS.items():
+        code=activity_label({'provider':'codex','state':'running','summary':summary})
+        for frame in frames['step:activity:codex:'+summary]:
+            image=Image.new('RGB',(960,236),'#090f16');draw=ImageDraw.Draw(image)
+            draw.text((28,22),'CODEX · İŞ ADIMLARI',font=font(23),fill='#edf5fc')
+            draw.text((28,57),'SENTETİK ADIM SIRASI  /  GERÇEK BİR GÖREV GEÇMİŞİ DEĞİLDİR',font=font(11),fill='#94a9bd')
+            draw.rounded_rectangle((24,87,936,182),12,fill='#05090e',outline='#304152')
+            for index,rgb in enumerate(frame):
+                x=46+(index%WIDTH)*14;y=107+(index//WIDTH)*14
+                draw.ellipse((x-4.5,y-4.5,x+4.5,y+4.5),fill=tuple(rgb) if any(rgb) else '#18232f')
+            draw.text((28,204),label+' · komut, dosya adı veya içerik gösterilmez',font=font(12),fill='#94a9bd')
+            draw.text((931,204),code,font=font(12),fill='#7bdcb0',anchor='ra')
+            images.append(image)
+    images[0].save(path,'GIF',save_all=True,append_images=images[1:],duration=500,loop=0,disposal=2,optimize=True)
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--svg',type=Path,default=ROOT/'docs/images/led-layouts.svg')
@@ -327,6 +377,7 @@ def main():
     parser.add_argument('--scroll-gif',type=Path)
     parser.add_argument('--mascot-png',type=Path)
     parser.add_argument('--mascot-gif',type=Path)
+    parser.add_argument('--steps-gif',type=Path)
     args=parser.parse_args();frames=fixtures()
     args.svg.parent.mkdir(parents=True,exist_ok=True);args.svg.write_text(svg_sheet(frames),encoding='utf-8')
     print(args.svg)
@@ -344,6 +395,8 @@ def main():
         mascot_artifacts(frames,args.mascot_png,args.mascot_gif)
         for path in (args.mascot_png,args.mascot_gif):
             if path:print(path)
+    if args.steps_gif:
+        args.steps_gif.parent.mkdir(parents=True,exist_ok=True);gif_work_steps(frames,args.steps_gif);print(args.steps_gif)
 
 
 if __name__=='__main__':

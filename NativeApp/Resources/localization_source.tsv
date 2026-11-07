@@ -210,3 +210,6 @@ Kayan yazı	Scrolling text	Texto desplazable	滚动文字	スクロール
 Efektler metin ve kota görünümlerinde kullanılır; onay, bilgi ve hata uyarıları sabit kalır.	Effects apply to text and quota views; approval, input and error alerts stay steady.	Los efectos se aplican al texto y a las cuotas; los avisos de aprobación, información y error permanecen fijos.	效果适用于文字和配额视图；审批、信息请求和错误提示保持静态。	エフェクトは文字と残り利用枠に適用されます。承認・入力の要求とエラー通知は動かずに表示されます。
 Claude maskotu	Claude mascot	Mascota de Claude	Claude 吉祥物	Claude マスコット
 Claude çalışırken yürür; onay veya bilgi beklerken durur.	Walks while Claude is working; stops while waiting for approval or input.	Camina mientras Claude trabaja; se detiene al esperar aprobación o información.	Claude 工作时行走；等待审批或信息输入时停下。	Claude の作業中は歩き、承認や入力を待つ間は立ち止まります。
+Gösterilecek araç	Tool to display	Herramienta que mostrar	显示工具	表示するツール
+Otomatik	Automatic	Automático	自动	自動
+Seçilen aracın durumları ve çalışma adımları gösterilir.	Shows the selected tool’s status and work steps.	Muestra los estados y los pasos de trabajo de la herramienta seleccionada.	显示所选工具的状态和工作步骤。	選択したツールの状態と作業ステップを表示します。

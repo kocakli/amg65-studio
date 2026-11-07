@@ -270,18 +270,30 @@ def apply_text_effect(frame, effect, brightness=0.4, elapsed=0, *, left=0):
 ACTIVITY_LABELS = {'running':'RUN','queued':'QUEUE','waiting_approval':'ASK',
                    'waiting_input':'INPUT','completed':'DONE','error':'ERROR'}
 ACTIVITY_PRIORITY = {'waiting_approval':5,'waiting_input':5,'error':4,'running':3,'queued':2,'completed':1}
+WORK_LABELS = {'working':'RUN','using_tool':'TOOL','running_command':'EXEC',
+               'reading_files':'READ','editing_files':'EDIT','searching':'FIND',
+               'compacting':'CTX','input_received':'READY'}
 
 
-def select_activity(activity, elapsed=0, now=None):
+def activity_label(activity):
+    """Fixed host metadata only; unknown tool names/arguments are never text."""
+    state=activity.get('state')
+    summary=activity.get('summary')
+    return (WORK_LABELS.get(summary,'RUN') if isinstance(summary,str) else 'RUN') if state=='running' else ACTIVITY_LABELS.get(state,'')
+
+
+def select_activity(activity, elapsed=0, now=None, *, provider='all'):
     """Prefer genuine attention events; rotate equally urgent providers fairly."""
     import time
     now=time.time() if now is None else now
+    if provider not in ('all','claude','codex','cursor'):return None
     if not isinstance(activity,dict): return None
     rows=activity.get('providers',[])
     candidates=[]
     for row in rows if isinstance(rows,list) else []:
         if not isinstance(row,dict) or row.get('provider') not in COLORS or row.get('state') not in ACTIVITY_LABELS:
             continue
+        if provider!='all' and row['provider']!=provider:continue
         expires=row.get('expires_at')
         if isinstance(expires,bool) or not isinstance(expires,(int,float)) or not math.isfinite(expires) or expires <= now:
             continue
@@ -291,7 +303,7 @@ def select_activity(activity, elapsed=0, now=None):
     priority=max(ACTIVITY_PRIORITY[row['state']] for row in candidates)
     rows=[row for row in candidates if ACTIVITY_PRIORITY[row['state']]==priority]
     # Working states leave four seconds in each ten-second cycle for allowances.
-    if priority in (2,3) and int(max(0,elapsed))%10 >= 6: return None
+    if provider=='all' and priority in (2,3) and int(max(0,elapsed))%10 >= 6: return None
     return rows[int(max(0,elapsed)//4)%len(rows)]
 
 
@@ -309,7 +321,7 @@ def render_activity(activity, snapshot, brightness=0.4, elapsed=0):
     color=tuple(round(min(254,v)*brightness) for v in COLORS[provider])
     label={'codex':'CODEX','claude':'CLAUDE','cursor':'CURSOR'}[provider]
     _text(pixels,label,7,color,30)
-    _text(pixels,ACTIVITY_LABELS[state],32,color,53)
+    _text(pixels,activity_label(activity),32,color,53)
     # Only this tiny icon moves, at two steps per second. Names and attention
     # states stay steady; the transport's existing frame/ACK cadence is unchanged.
     if state == 'running':
@@ -371,7 +383,7 @@ def render_claude_mascot(activity, snapshot, brightness=0.4, elapsed=0):
     # INPUT, ends at column 51; the sprite never reaches the label at column 26.
     _text(pixels,'A',26,tuple(round(v*brightness) for v in COLORS['claude']),29)
     state_color=tuple(round(v*brightness) for v in ERROR) if state=='error' else tuple(round(v*brightness) for v in COLORS['claude'])
-    _text(pixels,ACTIVITY_LABELS[state],32,state_color,53)
+    _text(pixels,activity_label(activity),32,state_color,53)
     entries={row.get('id'):row for row in snapshot.get('providers',[]) if isinstance(row,dict)}
     _bars(pixels,[entries.get(p,{'id':p}) for p,_ in PROVIDERS],brightness)
     return pixels

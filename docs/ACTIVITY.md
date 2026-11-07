@@ -64,6 +64,28 @@ The installer should back up each existing regular owner-owned configuration at 
 
 Hook commands run `activity_hooks.py receive --provider NAME --state-dir PATH`, accept bounded JSON on stdin, and always emit `{}` with exit status 0. They cannot approve, deny, answer, continue, rewrite inputs, inject prompts, or send network requests. The legacy Claude source is not repaired or upgraded by this integration.
 
+## Focused provider display and work steps
+
+The `tracked_provider` setting accepts `all`, `claude`, `codex`, or `cursor`; its default is `all` (Automatic). Automatic keeps the existing display-mode and activity-priority behavior. Selecting one provider makes the LED follow that provider: while activity display is enabled and a valid current event exists, its status stays selected rather than yielding to the usual six-second activity / four-second quota cycle. If activity is unknown, expired, or disabled, the selected provider's remaining quota is shown. Provider selection does not hide the other usage cards in the dashboard or change data collection.
+
+Display mode and custom-text controls are hidden while a particular provider is selected. Their local values are retained for switching back to Automatic. Saving a focused selection does not submit hidden custom text or silently replace its unsaved local draft. The focus setting does not override event freshness, authorize actions, or generate activity for a quiet session.
+
+For a genuine running event, the LED can replace generic `RUN` with a short label derived only from the collector's allowlisted `summary` value:
+
+| Normalized summary | LED label | Meaning |
+| --- | --- | --- |
+| `reading_files` | `READ` | An observed file-reading step. |
+| `editing_files` | `EDIT` | An observed file-editing step. |
+| `searching` | `FIND` | An observed search step. |
+| `running_command` | `EXEC` | An observed command-execution step. |
+| `using_tool` | `TOOL` | A tool step without a more specific supported category. |
+| `compacting` | `CTX` | An observed context-compaction step. |
+| Other supported running summaries | `RUN` | Working, without inventing a more detailed operation. |
+
+These are fixed five-row LED codes, independent of the dashboard language. Approval, input, completion, error, and queue states retain their existing `ASK`, `INPUT`, `DONE`, `ERROR`, and `QUEUE` meanings. The optional Claude mascot follows real Claude state; selecting Claude does not by itself start its walk. Other providers keep their normal text and status icons.
+
+“Work steps” means the steps the host actually reports through the verified integration. It is not a complete trace of all reasoning, tools, approvals, or background operations. A host that only reports a post-tool event cannot provide the same start-time visibility as one with pre-tool events. Unknown tool names remain generic; unsupported events are ignored, and no operation is inferred from a progress animation. The host-version and pending-approval limitations documented above still apply. Existing TTLs, private-data filtering, and permissions are unchanged.
+
 ## Privacy and limits
 
 Only allowlisted labels, event names, hashed session/turn/tool identities, timestamps and state are retained. Prompts, reasoning, answers, commands, paths, email, credentials, tool arguments/results and model-generated summaries are discarded. Unknown tool names become `using_tool`. Reading a JSON event transiently parses its bounded payload; no raw payload is logged or sent to another service.
@@ -77,3 +99,5 @@ Run offline tests without credentials, network, or USB:
 ```sh
 python3 -m unittest discover -s tests -p test_activity.py -v
 ```
+
+Codex function result records that omit the tool name preserve a previously observed work category only when the same opaque tool-call identity matches within the same session/turn. Other generic or unrelated calls remain generic. A matrix frame carries its own provider/state/summary metadata so preview labels correspond to the pixels even while the collector updates concurrently.

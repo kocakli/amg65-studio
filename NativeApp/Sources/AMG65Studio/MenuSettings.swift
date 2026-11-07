@@ -9,10 +9,12 @@ struct MenuDisplaySettings:Codable,Equatable {
     var textEffect="none"
     var activityEnabled=true
     var claudeMascot=false
+    var trackedProvider="all"
     enum CodingKeys:String,CodingKey {
         case brightness,text
         case displayMode="display_mode",textColor="text_color",textEffect="text_effect",activityEnabled="activity_enabled"
         case claudeMascot="claude_mascot"
+        case trackedProvider="tracked_provider"
     }
     init() {}
     init(from decoder:Decoder) throws {
@@ -25,10 +27,12 @@ struct MenuDisplaySettings:Codable,Equatable {
         // Older local bridges did not expose text effects.
         textEffect=try values.decodeIfPresent(String.self,forKey:.textEffect) ?? "none"
         if values.contains(.claudeMascot) { claudeMascot=try values.decode(Bool.self,forKey:.claudeMascot) }
+        if values.contains(.trackedProvider) { trackedProvider=try values.decode(String.self,forKey:.trackedProvider) }
     }
     var valid:Bool {
         ["overview","rotate","text"].contains(displayMode) && brightness.isFinite && (0...1).contains(brightness)
         && ["none","scan","breathe","matrix","scroll"].contains(textEffect)
+        && ["all","claude","codex","cursor"].contains(trackedProvider)
         && text.utf8.count<=64 && text.unicodeScalars.allSatisfy{(32...126).contains($0.value)}
         && textColor.range(of:#"^#[0-9a-fA-F]{6}$"#,options:.regularExpression) != nil
     }

@@ -59,6 +59,14 @@ class ConfigurationTests(unittest.TestCase):
         for value in (0,1,'true',None,[]):
             with self.assertRaises(ValueError):settings_patch({'claude_mascot':value})
 
+    def test_tracked_provider_is_bounded_and_old_settings_default_to_automatic(self):
+        from configuration import DEFAULTS
+        self.assertEqual(DEFAULTS['tracked_provider'],'all')
+        for provider in ('all','claude','codex','cursor'):
+            self.assertEqual(settings_patch({'tracked_provider':provider}),{'tracked_provider':provider})
+        for provider in ('other',None,True,1,[]):
+            with self.assertRaises(ValueError):settings_patch({'tracked_provider':provider})
+
 
 class OwnershipTests(unittest.TestCase):
     def make_app(self,path):

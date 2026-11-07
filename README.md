@@ -61,6 +61,8 @@ Accounts with verified usage show a green **Connected** badge and a secondary **
 
 **Claude mascot** adds an original 11 × 5 pixel character when genuine Claude activity is selected. It walks back and forth during work, holds still for approval/input, and waves when work completes. The state label and three quota gauges stay visible. The setting is optional and does not generate activity events or process prompts. See the [mascot research](docs/MASCOT_DESIGN_RESEARCH.md) for references, hardware limits and possible follow-ups.
 
+**Tool to display** selects Automatic, Claude, Codex or Cursor. A focused tool keeps its own observed states on the LED; another provider cannot replace it. With no fresh activity, its quota is shown. Known work categories have distinct fixed labels: READ, EDIT, FIND, EXEC, TOOL, CTX and READY. Unknown metadata stays generic; commands, file paths and model output are not copied to the strip.
+
 Lighting and per-key colors use an inline palette, HEX entry and RGB sliders. Selecting a color turns off the multicolor flag; **Use static color** selects a solid background. **Apply** sends the draft to the keyboard. No separate macOS color panel is needed.
 
 The native app opens on **Overview**, where the embedded dashboard owns the USB connection. Opening a native device page in either window temporarily takes control. The live usage display resumes once neither visible surface needs native USB control; closing a panel during an upload waits for that operation to finish. The shared process lock also prevents a separate helper from writing simultaneously. A lease expires if the app stops renewing it.
