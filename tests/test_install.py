@@ -93,7 +93,7 @@ class InstallLifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory)
             for name in ('app.py', 'renderer.py', 'usage_adapter.py', 'configuration.py',
-                         'dashboard.html', 'bin/amg65-hid', 'bin/amg65-usage', 'activity.py', 'activity_hooks.py', 'account_auth.py', 'UsageEngine/NOTICE.md', 'THIRD_PARTY_LICENSE.txt'):
+                         'dashboard.html', 'bin/amg65-hid', 'bin/amg65-usage', 'bin/claude-auth', 'activity.py', 'activity_hooks.py', 'account_auth.py', 'UsageEngine/NOTICE.md', 'THIRD_PARTY_LICENSE.txt'):
                 path = source/name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.touch()

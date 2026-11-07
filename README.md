@@ -23,7 +23,7 @@ Studio's bundled usage engine reads the providers' own signed-in sessions, fetch
 - Python 3.10+ for the companion service; no third-party Python packages.
 - Homebrew `libusb` for the full native app (`brew install libusb`). The native bundle's actual minimum macOS version follows the installed libusb build and is printed during packaging.
 - An AMG65 connected by USB in wired mode: vendor `0x0C45`, product `0x800A`, vendor usage page `0xFF68`, usage `0x61`.
-- Codex and Claude Code CLIs for sign-in, and a signed-in Cursor desktop app. CodexBar is **not required**. The independent helper uses only macOS SDK frameworks; no additional runtime package is installed.
+- The Codex CLI for sign-in, and a signed-in Cursor desktop app. The full build prepares a private, official Claude sign-in helper; an existing Claude Code installation is not modified. CodexBar is **not required**. The independent helper uses only macOS SDK frameworks; no additional runtime package is installed.
 
 Wireless mode and other keyboards are not supported. Only one AMG65 may be connected.
 
@@ -46,6 +46,8 @@ For the dashboard and LED bridge without the native app or libusb:
 ./build.sh --dashboard-only
 python3 install.py --dashboard-only
 ```
+
+The full build downloads the pinned official Claude Code native binary for sign-in, verifies its size, SHA-256 and Apple signature, and installs it privately as `bin/claude-auth`. It invokes only `auth login --claudeai`, so legacy interactive agent startup and its MCP approvals are not part of sign-in. The vendor binary is not committed or redistributed in this repository. Building the full app needs internet access for that preparation; subsequent builds reuse the verified file.
 
 Builds are signed ad hoc for local use and are **not notarized**. The build script verifies the bundle signature. This repository distributes source; it does not include a prebuilt release or a firmware flasher.
 

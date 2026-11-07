@@ -193,6 +193,10 @@ import Darwin
         check(!invalid.valid,"nonfinite display brightness rejected")
         check(MenuAccountsModel.authorizationURL("https://auth.openai.com/codex/device",provider:"codex") != nil,"Codex device sign-in URL accepted")
         check(MenuAccountsModel.authorizationURL("https://claude.ai/oauth/authorize?state=test",provider:"claude") != nil,"Claude provider authorization URL accepted")
+        check(MenuAccountsModel.authorizationURL("https://claude.com/cai/oauth/authorize?code_challenge_method=S256",provider:"claude") != nil,"modern Claude direct-auth URL accepted")
+        check(MenuAccountsModel.authorizationURL("https://claude.com/cai/oauth/authorize/redirect",provider:"claude")==nil,"modern Claude auth path prefix is not enough")
+        check(MenuAccountsModel.authorizationURL("https://claude.com/cai/oauth/authorize.evil",provider:"claude")==nil,"modern Claude auth path suffix rejected")
+        check(MenuAccountsModel.authorizationURL("https://auth.openai.com/cai/oauth/authorize",provider:"codex")==nil,"Claude-only auth path is not allowed for Codex")
         for invalidURL in ["http://auth.openai.com/codex/device","https://auth.openai.com.evil.test/codex/device","https://user:pass@auth.openai.com/codex/device","https://auth.openai.com/not-login","file:///tmp/login"] {
             check(MenuAccountsModel.authorizationURL(invalidURL,provider:"codex")==nil,"untrusted or unrelated sign-in URL rejected")
         }

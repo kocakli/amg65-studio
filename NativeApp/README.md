@@ -21,13 +21,14 @@ macOS 14 veya daha yeni hedef ve modern ikon derlemesi için tam Xcode 26+ gerek
 
 ```sh
 brew install libusb
+python3 tools/prepare_claude_auth.py
 python3 UsageEngine/build.py --test
 python3 UsageEngine/build.py
 python3 NativeApp/Tests/run_checks.py
 python3 NativeApp/build_app.py
 ```
 
-Çıktılar: `NativeApp/build/AMG65 Studio.app` ve `bin/amg65-usage`. ARM64 veya Intel için derleme yapılan Mac'in mimarisi kullanılır. Native paket libusb'yi dinamik bağlar ve lisansını içerir; UsageEngine yalnızca macOS SDK kütüphanelerini kullanır. Yerel ad-hoc imza uygulanır; Apple Developer ID imzası ve notarizasyon içermez. Kök `./build.sh` tam derlemeyi, kurulum aracı arka plan köprüsünü, iki yardımcıyı ve uygulamayı birlikte hazırlamak içindir. Yalnızca `.app` derlemek arka plan köprüsünü kurmaz.
+Çıktılar: `NativeApp/build/AMG65 Studio.app`, `bin/amg65-usage` ve `bin/claude-auth`. ARM64 veya Intel için derleme yapılan Mac'in mimarisi kullanılır. Native paket libusb'yi dinamik bağlar ve lisansını içerir; UsageEngine yalnızca macOS SDK kütüphanelerini kullanır. Studio uygulamasına yerel ad-hoc imza uygulanır; Apple Developer ID imzası ve notarizasyon içermez. İndirilen Claude yardımcısının üretici imzası ayrıca doğrulanır. Kök `./build.sh`, HID dahil tam derlemeyi yapar; kurulum aracı arka plan köprüsünü, yardımcıları ve uygulamayı birlikte kurar. Yalnızca `.app` derlemek arka plan köprüsünü kurmaz. Tam derleme, sabit resmi Claude yardımcısını ilk kez hazırlarken yaklaşık 280 MB ağ indirmesi gerektirebilir.
 
 ## Kullanım motoru ve oturumlar
 
@@ -43,9 +44,11 @@ Profil değişkenleri köprü/yardımcı sürecin ortamında bulunmalıdır; Lau
 
 ## Menüden hesap bağlama
 
-**Hesaplar → Giriş yap** resmi sağlayıcı akışını başlatır. Codex cihaz kodu ve sağlayıcı web sayfasını, Claude resmi CLI’ın abonelik girişini kullanır. Doğrulanmış sağlayıcı bağlantısı giriş tıklamasından sonra tarayıcıda açılır; yeniden açma düğmesi de bulunur. Cihaz kodu gösterilir ve kullanıcı isterse kopyalanır. Claude kod isterse yalnızca tek kullanımlık yetkilendirme kodu güvenli alana yapıştırılır; Studio parola veya API anahtarı istemez. Girilen kod ve ham CLI çıktısı kaydedilmez veya durum API’sine konulmaz.
+**Hesaplar → Giriş yap** resmi sağlayıcı akışını başlatır. Codex cihaz kodu ve sağlayıcı web sayfasını kullanır. Claude için Studio’ya özel, doğrulanmış güncel resmi yardımcıda `auth login --claudeai` çalıştırılır; eski global CLI’ın `/login` ajan oturumu başlatılmaz. Doğrulanmış sağlayıcı bağlantısı giriş tıklamasından sonra tarayıcıda açılır; yeniden açma düğmesi de bulunur. Cihaz kodu gösterilir ve kullanıcı isterse kopyalanır. Claude kod isterse yalnızca tek kullanımlık yetkilendirme kodu güvenli alana yapıştırılır; Studio parola veya API anahtarı istemez. Girilen kod ve ham CLI çıktısı kaydedilmez veya durum API’sine konulmaz.
 
-Cursor düğmesi Cursor uygulamasını açar; orada giriş yaptıktan sonra kullanımı yenileyin. Sağlayıcının ilk kurulum/tema/güven adımı gerekiyorsa Studio bunu otomatik kabul etmez. Tanınan Claude güven isteminde özel giriş klasörü için ayrı **Giriş klasörüne güven ve devam et** düğmesi bulunur; yalnızca bu açık eylem ilgili CLI seçimini onaylar. Desteklenmeyen kurulum adımları sağlayıcının kendi uygulamasında tamamlanır. Giriş en fazla beş dakika açık kalır. **İptal** yalnızca Studio’nun başlattığı giriş sürecini durdurur. Tarayıcıya geçerken menünün kapanması girişi iptal etmez; menü yeniden açıldığında durum izlenebilir. Kimlik bilgilerini oluşturan/yazan resmi CLI veya sağlayıcı uygulamasıdır; otomatik quota motorundan ayrı bir kullanıcı eylemidir.
+Cursor düğmesi Cursor uygulamasını açar; orada giriş yaptıktan sonra kullanımı yenileyin. Claude giriş yardımcısı ajan, proje güveni veya MCP onayı başlatmadan doğrudan kimlik doğrulama komutunu çalıştırır. Eski `/login` yoluna geri dönüş yapılmaz; yardımcı yoksa veya doğrulanamazsa giriş kullanılamaz olarak gösterilir. Giriş en fazla beş dakika açık kalır. **İptal** yalnızca Studio’nun başlattığı giriş sürecini durdurur. Tarayıcıya geçerken menünün kapanması girişi iptal etmez; menü yeniden açıldığında durum izlenebilir. Kimlik bilgilerini oluşturan/yazan resmi CLI veya sağlayıcı uygulamasıdır; otomatik quota motorundan ayrı bir kullanıcı eylemidir.
+
+Resmi Claude yardımcısı tam derleme sırasında [`tools/prepare_claude_auth.py`](../tools/prepare_claude_auth.py) ile sabit sürüm/kaynak/checksum üzerinden hazırlanır; ayrıca çalıştırılabilir. İndirme ve imza doğrulamasından sonra `bin/claude-auth` konumuna yerleştirilir ve Studio’nun özel kurulumuna kopyalanır. Global `claude` komutu, PATH, mevcut CLI kurulumu ve proje yapılandırmaları değiştirilmez. Mevcut Claude Code 2.0.35 etkinlik hook desteği ayrı kalır; kimlik doğrulama yardımcısının sürümüyle karıştırılmamalıdır.
 
 ## Gerçek iş durumları
 
@@ -93,7 +96,7 @@ Paketleme, Icon Composer ile hazırlanmış `Resources/AppIcon.icon` kaynağın�
 
 ## Menü çubuğunda çalışma
 
-AMG65 Studio menü çubuğunda tek renkli bir klavye simgesiyle kalır. 460 × 600 pt panelde **Kullanım hakları, Gösterim, Aydınlatma, Tuş atamaları, LCD ekran, LED animasyonu, Cihaz ayarları ve Hesaplar** bulunur. Tuş eşleme ve tuş başına renk çizimi 760 pt genişliğe açılır; diğer ayarlar aynı kompakt panelde kalır. Donanım bölümleri ortak USB sahipliğini alır; Hesaplar ve Gösterim bölümü USB oturumu açmaz. Ana pencere isteğe bağlıdır.
+AMG65 Studio menü çubuğunda tek renkli bir klavye simgesiyle kalır. **Kullanım hakları, Gösterim, Aydınlatma, Tuş atamaları, LCD ekran, LED animasyonu, Cihaz ayarları ve Hesaplar** aynı paneldedir. Kullanım bölümü dört sağlayıcı sekmesinde de sabit 460 × 410 pt boyutundadır; diğer bölümler 460 × 600 pt kullanır. Tuş eşleme ve tuş başına renk çizimi 760 × 600 pt genişliğe açılır. Donanım bölümleri ortak USB sahipliğini alır; Hesaplar ve Gösterim bölümü USB oturumu açmaz. Ana pencere isteğe bağlıdır.
 
 Kullanım bölümünde Genel bakış, Codex, Claude ve Cursor sekmeleri bulunur. Genel bakış üç sağlayıcıyı sade satırlarda gösterir; sağlayıcı sekmeleri birbirinden bağımsız kota pencerelerini ve yenilenme zamanlarını açar. Sekmelerin altındaki küçük göstergeler ilgili sağlayıcının seçili penceresini yansıtır, farklı kotalar toplanmaz. Bilinmeyen değerler sıfır sayılmaz; eski veya erişilemeyen ölçümler açıkça işaretlenir. Sayılar yalnızca yerel `GET /api/status` yanıtından okunur; native menü sağlayıcılara doğrudan bağlanmaz.
 

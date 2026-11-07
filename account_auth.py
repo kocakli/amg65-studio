@@ -60,7 +60,7 @@ def auth_url_allowed(provider, value):
                 if nested.fragment or nested.scheme or nested.netloc:
                     return False
                 query = parse_qs(nested.query)
-            elif parsed.path != '/oauth/authorize':
+            elif parsed.path not in ('/oauth/authorize', '/cai/oauth/authorize'):
                 return False
             if any(key in query for key in ('access_token', 'refresh_token', 'id_token', 'code_verifier')):
                 return False
@@ -113,14 +113,10 @@ def locate_binary(provider, home=None):
     home = Path(home) if home else Path.home()
     candidates = []
     if provider == 'claude':
-        versions = home/'.local/share/claude/versions'
-        if versions.is_dir():
-            numeric = []
-            for item in versions.iterdir():
-                if re.fullmatch(r'\d+\.\d+\.\d+', item.name):
-                    numeric.append((tuple(map(int, item.name.split('.'))), item))
-            candidates.extend(item for _, item in sorted(numeric, reverse=True))
-        candidates += [home/'.local/bin/claude', Path('/opt/homebrew/bin/claude'), Path('/usr/local/bin/claude')]
+        # Prepared from the pinned, signature-checked official release. Older
+        # interactive /login starts the agent and can load MCP approval screens.
+        # Never fall back to the user's global CLI or that interactive command.
+        candidates = [Path(__file__).resolve().parent/'bin/claude-auth']
     elif provider == 'codex':
         suffix = 'ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex'
         candidates = [Path('/Applications')/suffix, home/'Applications'/suffix,
@@ -134,13 +130,9 @@ def locate_binary(provider, home=None):
 
 def login_arguments(provider, executable):
     if provider == 'claude':
-        # /login works on the installed2.0.35 CLI, which predates `auth login`.
-        # Inline settings select the subscription path. No project/user hooks or
-        # MCP server configuration is loaded for this dedicated login process.
-        # mcp-config is variadic; a following option must end it before /login.
-        return [str(executable), '--mcp-config', '{"mcpServers":{}}',
-                '--settings', '{"forceLoginMethod":"claudeai","disableAllHooks":true}',
-                '--setting-sources', 'project', '--strict-mcp-config', '/login']
+        # Dedicated provider subcommand: no interactive agent, workspace trust,
+        # inference prompt, hook execution or MCP initialization is needed.
+        return [str(executable), 'auth', 'login', '--claudeai']
     if provider == 'codex':
         return [str(executable), 'login', '--device-auth']
     raise ValueError('Unsupported login provider')
@@ -320,7 +312,8 @@ class AccountManager:
             fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 50, 2000, 0, 0))
             environment = dict(os.environ)
             environment.update({'TERM': 'xterm-256color', 'NO_COLOR': '1', 'BROWSER': '/usr/bin/true',
-                                'AMG65_STUDIO_AUTH_FLOW':'1'})
+                                'AMG65_STUDIO_AUTH_FLOW':'1', 'DISABLE_UPDATES':'1',
+                                'DISABLE_AUTOUPDATER':'1'})
             # Login uses official default provider stores. Inference credentials and
             # wrappers must not override the user's requested subscription login.
             for key in ('ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN',

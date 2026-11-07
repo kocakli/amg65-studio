@@ -1,5 +1,7 @@
 """Offline login-boundary tests: no real provider process, browser or credentials."""
 from datetime import datetime, timedelta, timezone
+import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import signal
@@ -14,6 +16,10 @@ from urllib.parse import quote
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import account_auth as auth
 
+bootstrap_spec=importlib.util.spec_from_file_location('prepare_claude_auth',Path(auth.__file__).parent/'tools/prepare_claude_auth.py')
+bootstrap=importlib.util.module_from_spec(bootstrap_spec)
+bootstrap_spec.loader.exec_module(bootstrap)
+
 CLAUDE_URL = ('https://claude.ai/oauth/authorize?client_id='+auth.CLAUDE_CLIENT_ID+
               '&response_type=code&code_challenge=syntheticchallenge&code_challenge_method=S256&state=syntheticstate')
 
@@ -21,6 +27,7 @@ CLAUDE_URL = ('https://claude.ai/oauth/authorize?client_id='+auth.CLAUDE_CLIENT_
 class AuthURLTests(unittest.TestCase):
     def test_accepts_official_pkce_authorize_and_device_routes(self):
         self.assertTrue(auth.auth_url_allowed('claude',CLAUDE_URL))
+        self.assertTrue(auth.auth_url_allowed('claude',CLAUDE_URL.replace('claude.ai/oauth/','claude.com/cai/oauth/')))
         nested='/oauth/authorize?'+CLAUDE_URL.split('?',1)[1]
         self.assertTrue(auth.auth_url_allowed('claude','https://platform.claude.com/login?returnTo='+quote(nested,safe='')))
         self.assertTrue(auth.auth_url_allowed('codex','https://auth.openai.com/codex/device'))
@@ -74,14 +81,15 @@ class AccountLifecycleTests(unittest.TestCase):
         self.spawn=self.enterContext(patch.object(auth.subprocess,'Popen',side_effect=AssertionError('Unexpected provider process')))
         self.kill=self.enterContext(patch.object(auth.os,'killpg',side_effect=AssertionError('Unexpected signal')))
 
-    def test_start_uses_only_fixed_commands_and_disables_user_hooks(self):
+    def test_start_uses_dedicated_auth_command_without_agent_startup(self):
         command=auth.login_arguments('claude',Path('/fixture/claude'))
-        settings=json.loads(command[command.index('--settings')+1])
-        self.assertTrue(settings['disableAllHooks'])
-        self.assertEqual(command[command.index('--setting-sources')+1],'project')
-        self.assertEqual(command[command.index('--mcp-config')+2],'--settings')
-        self.assertEqual(command[-1],'/login')
+        self.assertEqual(command,['/fixture/claude','auth','login','--claudeai'])
         self.assertEqual(auth.login_arguments('codex',Path('/fixture/codex')),['/fixture/codex','login','--device-auth'])
+
+    def test_missing_private_helper_never_falls_back_to_old_global_claude(self):
+        with patch.object(auth.Path,'is_file',return_value=False) as exists:
+            self.assertIsNone(auth.locate_binary('claude',home=Path('/fixture/home')))
+        self.assertEqual(exists.call_count,1)
 
     def test_bad_provider_never_starts_process(self):
         for value in ('claude;echo bad','all',None,{},1):
@@ -190,6 +198,57 @@ class AccountLifecycleTests(unittest.TestCase):
         row=self.run_fixture_output('invalid_grant: invalid authorization code')
         self.assertEqual((row['phase'],row['error']),('error','code_rejected'))
         self.write.assert_not_called()
+
+
+class BootstrapTests(unittest.TestCase):
+    def setUp(self):
+        self.directory=Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.destination=self.directory/'claude-auth'
+        self.contents=b'synthetic-official-binary'
+        self.enterContext(patch.object(bootstrap,'RELEASES',{'arm64':(len(self.contents),hashlib.sha256(self.contents).hexdigest())}))
+        self.run=self.enterContext(patch.object(bootstrap.subprocess,'run',side_effect=AssertionError('Unexpected executable run')))
+
+    def test_bad_checksum_never_executes_downloaded_code(self):
+        self.destination.write_bytes(b'x'*len(self.contents));self.destination.chmod(0o700)
+        with self.assertRaisesRegex(RuntimeError,'checksum'):
+            bootstrap.validate(self.destination,'arm64')
+        self.run.assert_not_called()
+
+    def test_symlink_is_rejected_before_execution(self):
+        target=self.directory/'target';target.write_bytes(self.contents)
+        self.destination.symlink_to(target)
+        with self.assertRaisesRegex(RuntimeError,'regular file'):
+            bootstrap.validate(self.destination,'arm64')
+        self.run.assert_not_called()
+
+    def test_vendor_signature_checked_before_version_or_help(self):
+        self.destination.write_bytes(self.contents);self.destination.chmod(0o700)
+        self.run.side_effect=subprocess.CalledProcessError(1,'codesign')
+        with self.assertRaises(subprocess.CalledProcessError):
+            bootstrap.validate(self.destination,'arm64')
+        self.run.assert_called_once()
+        command=self.run.call_args.args[0]
+        self.assertEqual(command[0],'/usr/bin/codesign')
+        self.assertIn(bootstrap.TEAM_ID,' '.join(command))
+        self.assertIn(bootstrap.IDENTIFIER,' '.join(command))
+
+    def test_oversized_download_cleans_staging_without_publishing(self):
+        response=Mock(status=200)
+        response.__enter__=Mock(return_value=response);response.__exit__=Mock(return_value=None)
+        response.geturl.return_value=bootstrap.ORIGIN+'/'+bootstrap.VERSION+'/darwin-arm64/claude'
+        response.headers={};response.read1.return_value=self.contents+b'extra'
+        opener=Mock();opener.open.return_value=response
+        with patch.object(bootstrap.platform,'system',return_value='Darwin'), \
+             patch.object(bootstrap.platform,'machine',return_value='arm64'), \
+             patch.object(bootstrap.urllib.request,'build_opener',return_value=opener):
+            with self.assertRaisesRegex(RuntimeError,'exceeded'):
+                bootstrap.prepare(self.destination)
+        self.assertEqual(list(self.directory.iterdir()),[])
+        self.run.assert_not_called()
+
+    def test_rejects_redirect_to_unpinned_host(self):
+        with self.assertRaisesRegex(RuntimeError,'redirect'):
+            bootstrap.NoRedirect().redirect_request(None,None,302,'redirect',{},'https://evil.invalid/claude')
 
 
 if __name__=='__main__':unittest.main()

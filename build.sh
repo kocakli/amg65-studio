@@ -12,6 +12,7 @@ xcrun swiftc -O -target "${architecture}-apple-macosx14.0" \
   AMG65HID.swift -o bin/amg65-hid
 python3 UsageEngine/build.py
 if [[ "${1:-}" != --dashboard-only ]]; then
+  python3 tools/prepare_claude_auth.py
   python3 NativeApp/build_app.py
 fi
 echo 'Build complete. Install with: python3 install.py'

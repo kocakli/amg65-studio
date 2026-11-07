@@ -145,7 +145,8 @@ def install_native_app(source):
 
 def install(dashboard_only=False):
     executable = Path(sys.executable).resolve()
-    for file in ('app.py','renderer.py','usage_adapter.py','configuration.py','dashboard.html','bin/amg65-hid','bin/amg65-usage','activity.py','activity_hooks.py','account_auth.py','UsageEngine/NOTICE.md','THIRD_PARTY_LICENSE.txt'):
+    files = ('app.py','renderer.py','usage_adapter.py','configuration.py','dashboard.html','bin/amg65-hid','bin/amg65-usage','activity.py','activity_hooks.py','account_auth.py','UsageEngine/NOTICE.md','THIRD_PARTY_LICENSE.txt') + (() if dashboard_only else ('bin/claude-auth',))
+    for file in files:
         if not (SOURCE/file).is_file():
             raise SystemExit(f'Missing required file: {file}')
     native_app=SOURCE/'NativeApp/build/AMG65 Studio.app'
@@ -175,13 +176,15 @@ def install(dashboard_only=False):
     DEST.mkdir(parents=True, exist_ok=True, mode=0o700)
     state = DEST/'state'
     state.mkdir(exist_ok=True, mode=0o700)
-    for file in ('app.py','renderer.py','usage_adapter.py','configuration.py','dashboard.html','bin/amg65-hid','bin/amg65-usage','activity.py','activity_hooks.py','account_auth.py','UsageEngine/NOTICE.md','THIRD_PARTY_LICENSE.txt'):
+    for file in files:
         target = DEST/file
         target.parent.mkdir(parents=True, exist_ok=True)
         if (SOURCE/file).resolve() != target.resolve():
             shutil.copy2(SOURCE/file,target)
     (DEST/'bin/amg65-hid').chmod(0o755)
     (DEST/'bin/amg65-usage').chmod(0o755)
+    if not dashboard_only:
+        (DEST/'bin/claude-auth').chmod(0o755)
     PLIST.parent.mkdir(parents=True, exist_ok=True)
     spec = {
         'Label':LABEL, 'ProgramArguments':[str(executable),str(DEST/'app.py')],

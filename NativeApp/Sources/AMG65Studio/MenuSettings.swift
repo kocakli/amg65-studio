@@ -143,7 +143,7 @@ struct MenuAccount:Decodable,Identifiable {
               url.user==nil,url.password==nil,url.port==nil || url.port==443 else { return nil }
         let hosts:[String:Set<String>]=["codex":["auth.openai.com","chatgpt.com"],"claude":["claude.ai","claude.com","console.anthropic.com","platform.claude.com"]]
         guard let host=url.host?.lowercased(),hosts[provider]?.contains(host)==true else { return nil }
-        let paths=provider=="codex" ? ["/codex/device","/device","/activate","/oauth/authorize"]:["/oauth/authorize","/login"]
+        let paths=provider=="codex" ? ["/codex/device","/device","/activate","/oauth/authorize"]:["/oauth/authorize","/cai/oauth/authorize","/login"]
         guard paths.contains(url.path) else { return nil }
         return url
     }
