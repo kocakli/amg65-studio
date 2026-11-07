@@ -105,6 +105,32 @@ private final class MenuSettingsRedirectPolicy:NSObject,URLSessionTaskDelegate {
     }
 }
 
+struct MenuAccountUsage:Decodable {
+    let remainingPercent:Double?
+    let remainingLabel:String?
+    let stale:Bool?
+    let error:String?
+    let updatedAt:String?
+    enum CodingKeys:String,CodingKey {
+        case stale,error
+        case remainingPercent="remaining_percent",remainingLabel="remaining_label",updatedAt="updated_at"
+    }
+    var requiresSignIn:Bool {
+        ["auth_required","relogin_required","invalid_credentials","auth_missing","auth_expired","unauthorized","credentials_expired"].contains(error ?? "")
+    }
+    var transient:Bool { ["network_error","rate_limited","timeout"].contains(error ?? "") }
+    var inaccessible:Bool { ["keychain_locked","credentials_unreadable","access_denied"].contains(error ?? "") }
+    func hasMeasurement(at now:Date)->Bool {
+        guard MenuUsageSnapshot.validPercent(remainingPercent) != nil,let measured=MenuUsageSnapshot.date(updatedAt) else { return false }
+        return measured.timeIntervalSince(now)<=60
+    }
+    func fresh(at now:Date)->Bool {
+        error==nil && stale==false && hasMeasurement(at:now) && !MenuUsageSnapshot.old(updatedAt,now:now)
+    }
+}
+
+enum MenuAccountConnection:Equatable { case pending,connected,requiresSignIn,unknown }
+
 struct MenuAccount:Decodable,Identifiable {
     let provider:String
     let phase:String
@@ -116,14 +142,28 @@ struct MenuAccount:Decodable,Identifiable {
     let method:String?
     let interaction:String?
     let actions:[String]?
+    let usage:MenuAccountUsage?
     var id:String { provider }
     enum CodingKeys:String,CodingKey {
-        case provider,phase,error,method,interaction,actions
+        case provider,phase,error,method,interaction,actions,usage
         case authURL="auth_url",userCode="user_code",inputRequired="input_required",expiresAt="expires_at"
     }
     var pending:Bool { ["starting","awaiting_browser","awaiting_code","awaiting_confirmation"].contains(phase) }
+    func connection(at now:Date,knownConnected:Bool=false,allowCompletedPhase:Bool=true)->MenuAccountConnection {
+        if pending { return .pending }
+        if usage?.requiresSignIn==true { return .requiresSignIn }
+        if usage?.inaccessible==true { return .unknown }
+        if usage?.fresh(at:now)==true { return .connected }
+        // A completed provider login is evidence of authentication, not of a fresh
+        // quota. An explicit later auth rejection invalidates that completion.
+        if phase=="complete",allowCompletedPhase { return .connected }
+        if usage?.transient==true,allowCompletedPhase,
+           knownConnected || usage?.hasMeasurement(at:now)==true { return .connected }
+        if knownConnected,usage?.error==nil || usage?.error=="no_usage" { return .connected }
+        return .unknown
+    }
     static func idle(_ provider:String)->MenuAccount {
-        MenuAccount(provider:provider,phase:"idle",authURL:nil,userCode:nil,inputRequired:false,error:nil,expiresAt:nil,method:nil,interaction:nil,actions:nil)
+        MenuAccount(provider:provider,phase:"idle",authURL:nil,userCode:nil,inputRequired:false,error:nil,expiresAt:nil,method:nil,interaction:nil,actions:nil,usage:nil)
     }
 }
 
@@ -136,8 +176,31 @@ struct MenuAccount:Decodable,Identifiable {
     private let client=MenuLocalClient()
     private var generation=0
     private var pendingBrowserOpen=Set<String>()
+    private var verifiedConnections=Set<String>()
+    private var rejectedCompletions=Set<String>()
     var openAuthorization:((URL)->Void)?
+    init() {}
+    #if STUDIO_UI_PREVIEW
+    convenience init(preview:[MenuAccount]) { self.init();receive(preview) }
+    #endif
     func row(_ provider:String)->MenuAccount { accounts.first{$0.provider == provider} ?? .idle(provider) }
+    func connection(_ row:MenuAccount,at now:Date=Date())->MenuAccountConnection {
+        row.connection(at:now,knownConnected:verifiedConnections.contains(row.provider),
+                       allowCompletedPhase:!rejectedCompletions.contains(row.provider))
+    }
+    func receive(_ rows:[MenuAccount],at now:Date=Date()) {
+        accounts=Array(rows.filter{["claude","codex","cursor"].contains($0.provider)}.prefix(3));offline=false
+        for row in accounts {
+            if row.pending { rejectedCompletions.remove(row.provider) }
+            if row.usage?.requiresSignIn==true {
+                verifiedConnections.remove(row.provider);rejectedCompletions.insert(row.provider)
+            } else if row.usage?.inaccessible==true {
+                verifiedConnections.remove(row.provider)
+            } else if row.usage?.fresh(at:now)==true {
+                verifiedConnections.insert(row.provider);rejectedCompletions.remove(row.provider)
+            } else if connection(row,at:now) == .connected { verifiedConnections.insert(row.provider) }
+        }
+    }
     static func authorizationURL(_ value:String?,provider:String)->URL? {
         guard let value,value.count<=4096,let url=URL(string:value),url.scheme=="https",
               url.user==nil,url.password==nil,url.port==nil || url.port==443 else { return nil }
@@ -166,7 +229,7 @@ struct MenuAccount:Decodable,Identifiable {
             let reply=try JSONDecoder().decode(Reply.self,from:data)
             try Task.checkCancellation()
             guard token==generation else { return }
-            accounts=Array(reply.accounts.filter{["claude","codex","cursor"].contains($0.provider)}.prefix(3));offline=false
+            receive(reply.accounts)
             for row in accounts where pendingBrowserOpen.contains(row.provider) {
                 if row.pending,let url=Self.authorizationURL(row.authURL,provider:row.provider) {
                     pendingBrowserOpen.remove(row.provider); openAuthorization?(url)

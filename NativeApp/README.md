@@ -44,6 +44,8 @@ Profil değişkenleri köprü/yardımcı sürecin ortamında bulunmalıdır; Lau
 
 ## Menüden hesap bağlama
 
+Doğrulanmış kullanım verisi bulunan hesaplarda yeşil **Bağlı** etiketi ve ikincil **Hesap değiştir** düğmesi görünür. Uygulama yeniden açıldığında da kullanım verisi bağlantı durumunu belirler. Giriş tamamlanınca kullanım doğrulanır; geçici ağ hatası yeniden giriş istemez, süresi dolan veya reddedilen oturum ise yeniden giriş gerektirir.
+
 **Hesaplar → Giriş yap** resmi sağlayıcı akışını başlatır. Codex cihaz kodu ve sağlayıcı web sayfasını kullanır. Claude için Studio’ya özel, doğrulanmış güncel resmi yardımcıda `auth login --claudeai` çalıştırılır; eski global CLI’ın `/login` ajan oturumu başlatılmaz. Doğrulanmış sağlayıcı bağlantısı giriş tıklamasından sonra tarayıcıda açılır; yeniden açma düğmesi de bulunur. Cihaz kodu gösterilir ve kullanıcı isterse kopyalanır. Claude kod isterse yalnızca tek kullanımlık yetkilendirme kodu güvenli alana yapıştırılır; Studio parola veya API anahtarı istemez. Girilen kod ve ham CLI çıktısı kaydedilmez veya durum API’sine konulmaz.
 
 Cursor düğmesi Cursor uygulamasını açar; orada giriş yaptıktan sonra kullanımı yenileyin. Claude giriş yardımcısı ajan, proje güveni veya MCP onayı başlatmadan doğrudan kimlik doğrulama komutunu çalıştırır. Eski `/login` yoluna geri dönüş yapılmaz; yardımcı yoksa veya doğrulanamazsa giriş kullanılamaz olarak gösterilir. Giriş en fazla beş dakika açık kalır. **İptal** yalnızca Studio’nun başlattığı giriş sürecini durdurur. Tarayıcıya geçerken menünün kapanması girişi iptal etmez; menü yeniden açıldığında durum izlenebilir. Kimlik bilgilerini oluşturan/yazan resmi CLI veya sağlayıcı uygulamasıdır; otomatik quota motorundan ayrı bir kullanıcı eylemidir.

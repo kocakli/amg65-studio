@@ -202,6 +202,57 @@ import Darwin
         }
         let account=try JSONDecoder().decode(MenuAccount.self,from:Data(#"{"provider":"claude","phase":"awaiting_code","expires_at":"2026-11-07T10:00:00Z","input_required":true}"#.utf8))
         check(account.pending && account.inputRequired==true && account.expiresAt != nil,"account contract decodes ISO timestamp and input phase")
+        func accountFixture(phase:String="idle",percent:Double?=98,stale:Bool=false,error:String?=nil,
+                            measured:Date?=current,provider:String="claude")->MenuAccount {
+            var usage:[String:Any]=["stale":stale]
+            if let percent { usage["remaining_percent"]=percent }
+            if let error { usage["error"]=error }
+            if let measured { usage["updated_at"]=ISO8601DateFormatter().string(from:measured) }
+            let data=try! JSONSerialization.data(withJSONObject:["provider":provider,"phase":phase,"usage":usage])
+            return try! JSONDecoder().decode(MenuAccount.self,from:data)
+        }
+        let connectedAccounts=MenuAccountsModel()
+        let freshAccount=accountFixture()
+        connectedAccounts.receive([freshAccount],at:current)
+        check(connectedAccounts.connection(freshAccount,at:current) == .connected,"idle account with fresh API usage stays connected after app restart")
+        let finishedAccount=accountFixture(phase:"complete")
+        connectedAccounts.receive([finishedAccount],at:current)
+        check(connectedAccounts.connection(finishedAccount,at:current) == .connected,"completed login with fresh usage is connected, not a pending refresh")
+        let pendingAccount=accountFixture(phase:"awaiting_browser")
+        check(pendingAccount.connection(at:current) == .pending,"active account switch remains pending despite old fresh usage")
+        for failure in ["auth_required","relogin_required","invalid_credentials","auth_missing","auth_expired","unauthorized"] {
+            let rejected=accountFixture(phase:"complete",error:failure)
+            connectedAccounts.receive([rejected],at:current)
+            check(connectedAccounts.connection(rejected,at:current) == .requiresSignIn,"explicit auth failure overrides completed login and a cached percentage")
+        }
+        let rejectedThenNetwork=accountFixture(phase:"complete",stale:true,error:"network_error")
+        connectedAccounts.receive([rejectedThenNetwork],at:current)
+        check(connectedAccounts.connection(rejectedThenNetwork,at:current) == .unknown,"old completed phase cannot resurrect rejected authentication after a network failure")
+        connectedAccounts.receive([freshAccount],at:current)
+        for failure in ["network_error","rate_limited","timeout"] {
+            let temporary=accountFixture(stale:true,error:failure,measured:current.addingTimeInterval(-1800))
+            connectedAccounts.receive([temporary],at:current)
+            check(connectedAccounts.connection(temporary,at:current) == .connected,"transient error preserves known connection without forcing sign-in")
+            let restarted=MenuAccountsModel();restarted.receive([temporary],at:current)
+            check(restarted.connection(temporary,at:current) == .connected,"retained same-account measurement survives restart during a transient error")
+        }
+        let neverVerified=accountFixture(percent:nil,stale:true,error:"network_error",measured:nil)
+        let unknownAccounts=MenuAccountsModel();unknownAccounts.receive([neverVerified],at:current)
+        check(unknownAccounts.connection(neverVerified,at:current) == .unknown,"network error without authentication evidence is unknown, not a forced login")
+        for failure in ["keychain_locked","credentials_unreadable","access_denied"] {
+            let inaccessible=accountFixture(phase:"complete",error:failure)
+            check(inaccessible.connection(at:current) == .unknown,"unreadable or denied credentials do not display a connected badge")
+        }
+        let noQuota=accountFixture(phase:"complete",percent:nil,stale:true,error:"no_usage",measured:nil)
+        check(noQuota.connection(at:current) == .connected,"successful sign-in and unavailable quota are separate states")
+        let cancelledSwitch=accountFixture(phase:"cancelled")
+        check(cancelledSwitch.connection(at:current) == .connected,"cancelled switch preserves existing freshly measured account")
+        let failedSwitch=accountFixture(phase:"error")
+        check(failedSwitch.connection(at:current) == .connected,"failed switch does not erase a still valid existing account")
+        let futureAccount=accountFixture(measured:current.addingTimeInterval(3600))
+        check(futureAccount.connection(at:current) == .unknown,"future-dated usage cannot establish a connection")
+        let zeroAccount=accountFixture(percent:0)
+        check(zeroAccount.connection(at:current) == .connected,"exhausted quota is still an authenticated connection")
         let notifications=NotificationCenter(),menuObject=NSObject()
         var orderedIn=true,visibilityChanges=[Bool]()
         let visibility=MenuWindowVisibilityObservation(object:menuObject,center:notifications,startTimer:false,

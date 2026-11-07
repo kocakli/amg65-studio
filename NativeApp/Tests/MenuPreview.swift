@@ -12,11 +12,14 @@ import AppKit
         }
         let data=try JSONSerialization.data(withJSONObject:["providers":[provider("codex",62,84),provider("claude",94,48),provider("cursor",37,71)],"hardware_owner":"dashboard","device":["connected":true],"running":true,"settings":["display_mode":"text","brightness":0.4,"text":"AMG65 STUDIO","text_color":"#7bdcb0","activity_enabled":true]])
         let snapshot=try JSONDecoder().decode(MenuUsageSnapshot.self,from:data)
+        let fixtureAccounts=try JSONDecoder().decode([MenuAccount].self,from:JSONSerialization.data(withJSONObject:
+            ["codex","claude","cursor"].map { id in ["provider":id,"phase":id=="claude" ? "complete":"idle",
+                "usage":["remaining_percent":62,"stale":false,"updated_at":formatter.string(from:now)]] as [String:Any] }))
         let session=DriverSession();session.active=true
         let lighting=LightingModel(),colors=CustomLightModel(),keys=KeymapModel(),lcd=ScreenModel(),strip=StripModel(),settings=SettingsModel()
         let cases=[("usage","overview","overview"),("usage","codex","codex"),("usage","claude","claude"),("usage","cursor","cursor"),("display","overview","display"),("lighting","overview","lighting"),("keys","overview","keys"),("lcd","overview","lcd"),("led","overview","led"),("device","overview","device"),("accounts","overview","accounts")]
         for (section,tab,name) in cases {
-            let view=StudioMenuPopover(preview:snapshot,section:section,tab:tab)
+            let view=StudioMenuPopover(preview:snapshot,section:section,tab:tab,previewAccounts:fixtureAccounts)
                 .environmentObject(session).environmentObject(session.hid)
                 .environmentObject(lighting).environmentObject(colors).environmentObject(keys)
                 .environmentObject(lcd).environmentObject(strip).environmentObject(settings)

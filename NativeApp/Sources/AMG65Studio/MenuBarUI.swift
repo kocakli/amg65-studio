@@ -319,11 +319,12 @@ struct StudioMenuPopover:View {
     private var initialUsageTab="overview"
     init() {}
     #if STUDIO_UI_PREVIEW
-    init(preview:MenuUsageSnapshot,section:String="usage",tab:String="overview") {
+    init(preview:MenuUsageSnapshot,section:String="usage",tab:String="overview",previewAccounts:[MenuAccount]=[]) {
         _monitor=StateObject(wrappedValue:MenuUsageMonitor(preview:preview))
         _section=State(initialValue:MenuSection(rawValue:section) ?? .usage)
         let model=MenuDisplayModel();model.receive(preview)
         _display=StateObject(wrappedValue:model)
+        if !previewAccounts.isEmpty { _accounts=StateObject(wrappedValue:MenuAccountsModel(preview:previewAccounts)) }
         initialUsageTab=tab
     }
     #endif
@@ -479,18 +480,25 @@ struct StudioMenuPopover:View {
     }
     private var accountControls:some View {
         VStack(alignment:.leading,spacing:0) {
-            Text(L("Hesabınıza sağlayıcının kendi giriş ekranında bağlanın."))
+            Text(L("Hesap bağlantılarınızı buradan yönetin."))
                 .font(.system(size:12)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true).padding(.bottom,10)
             ForEach([UsageTab.codex,.claude,.cursor]) { provider in
                 let row=accounts.row(provider.rawValue)
+                let connection=accounts.connection(row)
                 VStack(alignment:.leading,spacing:10) {
                     HStack(spacing:8) {
                         Image(systemName:provider.glyph).foregroundStyle(provider.tint)
                         Text(provider.title).font(.system(size:14,weight:.semibold))
                         Spacer()
                         if row.pending { ProgressView().controlSize(.small) }
+                        else if connection == .connected {
+                            Label(L("Bağlı"),systemImage:"checkmark.circle.fill")
+                                .font(.system(size:10,weight:.medium)).foregroundStyle(.green)
+                                .padding(.horizontal,7).padding(.vertical,4)
+                                .background(Color.green.opacity(0.1),in:Capsule())
+                        }
                     }
-                    Text(accountMessage(row)).font(.system(size:11)).foregroundStyle(row.phase == "error" ? Color.orange:Color.secondary)
+                    Text(accountMessage(row)).font(.system(size:11)).foregroundStyle(connection != .connected && row.phase == "error" ? Color.orange:Color.secondary)
                         .fixedSize(horizontal:false,vertical:true)
                     if let code=row.userCode,!code.isEmpty {
                         HStack {
@@ -514,8 +522,18 @@ struct StudioMenuPopover:View {
                     }
                     HStack {
                         if !row.pending {
-                            Button(L(provider == .cursor ? "Cursor’da giriş yap":"Giriş yap")) { connect(provider.rawValue) }
-                                .buttonStyle(.borderedProminent).disabled(accounts.busy || accounts.offline)
+                            if connection == .connected {
+                                Button(L("Hesap değiştir")) { connect(provider.rawValue) }
+                                    .buttonStyle(.bordered).disabled(accounts.busy || accounts.offline)
+                            } else if connection == .requiresSignIn {
+                                Button(L("Yeniden giriş yap")) { connect(provider.rawValue) }
+                                    .buttonStyle(.borderedProminent).disabled(accounts.busy || accounts.offline)
+                            } else {
+                                Button(L("Kullanımı yenile")) { perform { await monitor.requestRefresh();await accounts.refresh() } }
+                                    .buttonStyle(.bordered).disabled(accounts.busy || monitor.refreshing)
+                                Button(L(provider == .cursor ? "Cursor’da giriş yap":"Giriş yap")) { connect(provider.rawValue) }
+                                    .buttonStyle(.plain).disabled(accounts.busy || accounts.offline)
+                            }
                         }
                         if let url=MenuAccountsModel.authorizationURL(row.authURL,provider:row.provider),row.pending {
                             Button(L("Tarayıcıyı aç")) { NSWorkspace.shared.open(url) }.disabled(accounts.busy)
@@ -532,13 +550,23 @@ struct StudioMenuPopover:View {
         }
     }
     private func accountMessage(_ row:MenuAccount)->String {
-        if row.provider == "cursor" { return L("Cursor uygulamasında giriş yaptıktan sonra kullanımı yenileyin.") }
+        let connection=accounts.connection(row)
+        if connection == .connected {
+            if accounts.offline { return L("Yerel köprü çevrimdışı") }
+            if row.usage?.fresh(at:Date())==true { return L("Kullanım bilgisi güncel.") }
+            if row.usage?.transient==true { return L("Kullanım geçici olarak yenilenemiyor. Hesabınızın yeniden bağlanması gerekmiyor.") }
+            if row.usage?.hasMeasurement(at:Date())==true { return L("Son kullanım bilgisi güncel değil. Yenileyebilirsiniz.") }
+            return L("Hesap bağlı. Kullanım bilgisi henüz alınamadı.")
+        }
+        if connection == .requiresSignIn {
+            return L(row.provider == "cursor" ? "Cursor uygulamasında giriş yaptıktan sonra kullanımı yenileyin.":"Hesabınıza yeniden giriş yapmanız gerekiyor.")
+        }
+        if row.provider == "cursor",row.pending { return L("Cursor uygulamasında giriş yaptıktan sonra kullanımı yenileyin.") }
         switch row.phase {
         case "starting":return L("Giriş başlatılıyor…")
         case "awaiting_browser":return L("Tarayıcıda giriş işlemini tamamlayın.")
         case "awaiting_code":return L("Tarayıcının verdiği yetkilendirme kodunu girin.")
         case "awaiting_confirmation":return L("Claude giriş izni bekliyor.")
-        case "complete":return L("Giriş tamamlandı. Kullanım yenileniyor.")
         case "cancelled":return L("Giriş iptal edildi.")
         case "error":
             switch row.error {
@@ -549,8 +577,8 @@ struct StudioMenuPopover:View {
             default:return L("Giriş tamamlanamadı. Yeniden deneyin.")
             }
         default:
-            let provider=monitor.providers.first{$0.id == row.provider}
-            return L(provider?.isStale(at:Date(),offline:monitor.offline) == false ? "Kullanım bilgisi güncel.":"Kullanım bilgisi için hesabınızı bağlayın.")
+            if row.usage?.inaccessible==true { return L("Hesap bilgilerine erişilemiyor. Erişim izinlerini kontrol edin.") }
+            return L("Bağlantı henüz doğrulanamadı. Kullanımı yenileyin.")
         }
     }
     private func connect(_ provider:String) {

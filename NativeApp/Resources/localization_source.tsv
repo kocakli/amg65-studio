@@ -175,3 +175,13 @@ Uygula	Apply	Aplicar	应用	適用
 Claude, Studio’nun özel giriş klasörüne güvenmenizi istiyor.	Claude asks you to trust Studio’s private sign-in folder.	Claude te pide confiar en la carpeta privada de Studio para iniciar sesión.	Claude 请求您信任 Studio 专用的登录文件夹。	Claude が Studio の非公開のログイン用フォルダを信頼する許可を求めています。
 Giriş klasörüne güven ve devam et	Trust sign-in folder and continue	Confiar en la carpeta y continuar	信任登录文件夹并继续	ログイン用フォルダを信頼して続行
 Claude giriş izni bekliyor.	Claude is waiting for sign-in permission.	Claude espera permiso para iniciar sesión.	Claude 正在等待登录许可。	Claude がログインの許可を待っています。
+Hesap bağlantılarınızı buradan yönetin.	Manage your account connections here.	Administra aquí las conexiones de tus cuentas.	在此管理账户连接。	アカウントの接続をここで管理します。
+Bağlı	Connected	Conectada	已连接	接続済み
+Hesap değiştir	Switch account	Cambiar de cuenta	切换账户	アカウントを切り替え
+Kullanım geçici olarak yenilenemiyor. Hesabınızın yeniden bağlanması gerekmiyor.	Usage cannot refresh right now. You do not need to reconnect your account.	El uso no se puede actualizar ahora. No necesitas volver a conectar tu cuenta.	暂时无法刷新使用情况，无需重新连接账户。	現在、利用状況を更新できません。アカウントの再接続は不要です。
+Son kullanım bilgisi güncel değil. Yenileyebilirsiniz.	The last usage reading is out of date. You can refresh it.	La última lectura de uso está desactualizada. Puedes actualizarla.	上次的使用信息已过期，您可以刷新。	最後に取得した利用状況は古くなっています。更新できます。
+Hesap bağlı. Kullanım bilgisi henüz alınamadı.	Account connected. Usage information is not available yet.	Cuenta conectada. La información de uso aún no está disponible.	账户已连接，尚未获取使用信息。	アカウントは接続済みです。利用状況はまだ取得できていません。
+Hesabınıza yeniden giriş yapmanız gerekiyor.	You need to sign in to your account again.	Necesitas volver a iniciar sesión en tu cuenta.	请重新登录账户。	アカウントに再度ログインしてください。
+Hesap bilgilerine erişilemiyor. Erişim izinlerini kontrol edin.	Account information is inaccessible. Check access permissions.	No se puede acceder a la información de la cuenta. Revisa los permisos.	无法访问账户信息，请检查访问权限。	アカウント情報にアクセスできません。アクセス権限を確認してください。
+Bağlantı henüz doğrulanamadı. Kullanımı yenileyin.	Connection has not been verified yet. Refresh usage.	La conexión aún no se ha verificado. Actualiza el uso.	尚未验证连接，请刷新使用情况。	接続をまだ確認できていません。利用状況を更新してください。
+Yeniden giriş yap	Sign in again	Volver a iniciar sesión	重新登录	再ログイン
