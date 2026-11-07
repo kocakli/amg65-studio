@@ -48,3 +48,34 @@ class RendererTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class ActivityRendererTests(unittest.TestCase):
+    def test_attention_preempts_running_and_expired_states_disappear(self):
+        from renderer import select_activity
+        activity={'providers':[
+            {'provider':'codex','state':'running','expires_at':200},
+            {'provider':'claude','state':'waiting_approval','expires_at':200}]}
+        self.assertEqual(select_activity(activity,7,100)['provider'],'claude')
+        self.assertIsNone(select_activity(activity,0,201))
+
+    def test_working_states_share_time_with_quota_display(self):
+        from renderer import select_activity
+        activity={'providers':[{'provider':'codex','state':'running','expires_at':200}]}
+        self.assertIsNotNone(select_activity(activity,2,100))
+        self.assertIsNone(select_activity(activity,7,100))
+
+    def test_no_invented_unknown_and_fair_waiting_rotation(self):
+        from renderer import select_activity
+        self.assertIsNone(select_activity({'providers':[{'provider':'codex','state':'unknown','expires_at':200}]},0,100))
+        rows=[{'provider':p,'state':'waiting_input','expires_at':200} for p in ('codex','claude')]
+        self.assertEqual(select_activity({'providers':rows},0,100)['provider'],'codex')
+        self.assertEqual(select_activity({'providers':rows},4,100)['provider'],'claude')
+
+    def test_all_activity_frames_are_bounded_and_do_not_render_private_text(self):
+        from renderer import render_activity,ACTIVITY_LABELS
+        for state in ACTIVITY_LABELS:
+            row={'provider':'codex','state':state,'summary':'PRIVATE FILE/PROMPT'}
+            frame=render_activity(row,{},0.4,1)
+            self.assertEqual(len(frame),315)
+            self.assertTrue(all(len(pixel)==3 and all(0<=v<=254 for v in pixel) for pixel in frame))
+            self.assertEqual(frame,render_activity(dict(row,summary='DIFFERENT'),{},0.4,1))

@@ -1,8 +1,12 @@
 # Security
 
-AMG65 Studio is a local, user-space macOS application. Its HTTP companion binds to `127.0.0.1`; its native helper only opens the AMG65 vendor HID interface. It does not read ordinary key input or microphone audio. Normal usage updates read CodexBar's local cache.
+AMG65 Studio is a local, user-space macOS application. Its HTTP companion binds to `127.0.0.1`; its HID helper only opens the AMG65 vendor interface. It does not read ordinary key input or microphone audio. Version 0.3 uses its own bundled UsageEngine to read existing provider sessions and fetch quotas over bounded HTTPS. CodexBar is not a runtime dependency.
 
-The loopback API rejects unexpected Host and Origin values, accepts bounded JSON requests, and has no cross-origin access policy. It is **not an authentication boundary against other local processes or users**. Do not expose this port through a proxy or tunnel.
+Automatic quota refresh does not open login dialogs, rotate refresh tokens or write provider credentials. Keychain reads forbid interaction. Explicit **Sign in** actions are separate: the official Codex/Claude CLI or Cursor app owns authentication and its credential writes. Studio accepts no password or API key; a requested one-time authorization code is forwarded to the waiting official CLI. Raw CLI output and submitted codes are not included in status responses or logs. Treat authorization URLs and device codes as temporary sign-in information; do not include them in bug reports.
+
+Only normalized quota data and an opaque account discriminator are persisted in Studio's private usage cache; the account discriminator is stripped from HTTP/UI/LED output. Previous usage survives a transient network error only when the current account matches, and remains marked stale. Activity is separate metadata from verified hooks and bounded Codex log tails. Prompts, answers, commands and file paths are not persisted or displayed; absent/expired events mean unknown, not success. See [activity limits](docs/ACTIVITY.md) for host-version and freshness constraints.
+
+The loopback API rejects unexpected Host values and requires an allowed exact Origin for writes, accepts bounded JSON requests, and grants no cross-origin read policy. Account start/submit/cancel actions use the same checks. It is **not an authentication boundary against other local processes or users**: a local process can manufacture those headers and inspect temporary login status. Do not expose this port through a proxy or tunnel.
 
 USB operations are serialized and use a shared per-user process lock. Lost or invalid acknowledgments stop the current connection; a new USB attachment is needed before retrying. The application never flashes firmware. Device settings and media uploads can still change the keyboard's stored configuration; a successful ACK is not complete readback verification.
 

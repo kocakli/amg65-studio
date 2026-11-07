@@ -1,0 +1,177 @@
+Dil	Language	Idioma	语言	言語
+Sistem dili	System language	Idioma del sistema	跟随系统	システム言語
+Kullanım hakları	Usage limits	Límites de uso	使用额度	利用枠
+Aydınlatma	Lighting	Iluminación	灯光	ライティング
+Tuş renkleri	Key colors	Colores de teclas	按键颜色	キーの色
+Tuş atamaları	Key mapping	Asignación de teclas	按键映射	キー割り当て
+LCD ekran	LCD screen	Pantalla LCD	LCD 屏幕	LCD 画面
+LED animasyonu	LED animation	Animación LED	LED 动画	LED アニメーション
+Cihaz ayarları	Device settings	Ajustes del dispositivo	设备设置	デバイス設定
+Yerel bağlantı\nOturumlar sağlayıcı uygulamalarında kalır.	Local connection\nSessions stay in provider apps.	Conexión local\nLas sesiones quedan en las apps de los proveedores.	本地连接\n会话保留在服务商应用中。	ローカル接続\nセッションは各サービスのアプリに保持されます。
+Yeniden bağlan	Reconnect	Reconectar	重新连接	再接続
+USB bağlı	USB connected	USB conectado	USB 已连接	USB 接続済み
+Alıcı bağlı	Receiver connected	Receptor conectado	接收器已连接	レシーバー接続済み
+Gösterilen ayarlar yerel tercihlerdir; cihazdan geri okuma yapılmaz.	These are local preferences; settings are not read back from the device.	Son preferencias locales; no se leen los ajustes actuales del dispositivo.	这里显示本地偏好设置，不读取设备中的当前设置。	表示内容はローカル設定です。デバイスの現在の設定は読み取れません。
+Önce AMG65 Studio yerel köprüsünü kurun veya başlatın.	Install or start the AMG65 Studio local bridge first.	Instala o inicia primero el puente local de AMG65 Studio.	请先安装或启动 AMG65 Studio 本地桥接服务。	先に AMG65 Studio のローカルブリッジをインストールまたは起動してください。
+Yeniden yükle	Reload	Recargar	重新加载	再読み込み
+Kullanım paneli yükleniyor…	Loading usage dashboard…	Cargando el panel de uso…	正在加载使用额度面板…	利用状況を読み込み中…
+Yerel kullanım paneline erişilemiyor.	The local usage dashboard is unavailable.	No se puede acceder al panel de uso local.	无法访问本地使用额度面板。	ローカルの利用状況パネルに接続できません。
+Cihaz işlemi onayladı	Device confirmed the operation	El dispositivo confirmó la operación	设备已确认操作	デバイスが操作を確認しました
+İşlem tamamlanmadı	Operation did not complete	La operación no se completó	操作未完成	操作が完了しませんでした
+İşlem ayrıntıları	Operation details	Detalles de la operación	操作详情	操作の詳細
+Klavye aydınlatması	Keyboard lighting	Iluminación del teclado	键盘灯光	キーボードのライティング
+Efekt	Effect	Efecto	效果	エフェクト
+Tek renk	Single color	Color único	单色	単色
+Çok renkli	Multicolor	Multicolor	多色	マルチカラー
+Parlaklık	Brightness	Brillo	亮度	明るさ
+Hız	Speed	Velocidad	速度	速度
+Klavyeye uygula	Apply to keyboard	Aplicar al teclado	应用到键盘	キーボードに適用
+Tuşları boya	Paint keys	Colorear teclas	为按键着色	キーに色を付ける
+Fırça	Brush	Pincel	画笔	ブラシ
+Silgi	Eraser	Borrador	橡皮擦	消しゴム
+Tümünü boya	Fill all	Colorear todas	全部填充	すべて塗る
+Temizle	Clear	Borrar	清除	クリア
+Renkleri uygula	Apply colors	Aplicar colores	应用颜色	色を適用
+Bir tuş seç ve görevlendir	Select a key and assign an action	Selecciona una tecla y asigna una acción	选择按键并分配操作	キーを選んで機能を割り当てる
+Varsayılan	Default	Predeterminado	默认	デフォルト
+Yeni tuş	New key	Nueva tecla	新按键	新しいキー
+Atamayı hazırla	Stage assignment	Preparar asignación	准备映射	割り当てを準備
+Bu tuşu varsayılana al	Reset this key to default	Restablecer esta tecla	恢复此键默认设置	このキーを初期設定に戻す
+Fn tuşu korunur. Klavye görselinden bir tuşa tıkla.	Fn is protected. Click a key in the keyboard layout.	Fn está protegida. Haz clic en una tecla del teclado.	Fn 键受保护。请点击键盘布局中的按键。	Fn キーは保護されています。キーボード図のキーを選んでください。
+Harita bütünüyle yazılır. Uygulama dışındaki mevcut atamalar geri okunamaz.	The entire mapping is written. Existing assignments made outside this app cannot be read back.	Se escribe el mapa completo. No se pueden leer asignaciones hechas fuera de esta app.	将写入完整映射。无法读取在此应用之外设置的现有映射。	マップ全体が書き込まれます。このアプリ以外で設定した割り当ては読み取れません。
+Tuş haritasını uygula	Apply key mapping	Aplicar asignación de teclas	应用按键映射	キー割り当てを適用
+240 × 135 LCD ekran	240 × 135 LCD screen	Pantalla LCD de 240 × 135	240 × 135 LCD 屏幕	240 × 135 LCD 画面
+Görsel hazırlanıyor…	Preparing image…	Preparando imagen…	正在准备图像…	画像を準備中…
+GIF, PNG veya JPEG seç	Choose a GIF, PNG or JPEG	Elige un GIF, PNG o JPEG	选择 GIF、PNG 或 JPEG	GIF、PNG、JPEG を選択
+Görsel seç…	Choose image…	Elegir imagen…	选择图像…	画像を選択…
+Seç	Choose	Elegir	选择	選択
+Ekranı doldur (kırp)	Fill screen (crop)	Llenar pantalla (recortar)	填满屏幕（裁剪）	画面全体に表示（トリミング）
+{0} · {1} kare	{0} · {1} frames	{0} · {1} fotogramas	{0} · {1} 帧	{0} · {1} フレーム
+32 MB / 130 kare sınırı. Yükleme mevcut ekran içeriğinin yerini alır.	Limit: 32 MB / 130 frames. Upload replaces the current screen content.	Límite: 32 MB / 130 fotogramas. La carga sustituye el contenido actual.	上限为 32 MB / 130 帧。上传将替换当前屏幕内容。	上限は 32 MB／130 フレームです。アップロードすると現在の画面内容が置き換わります。
+LCD’ye yükle	Upload to LCD	Cargar en LCD	上传到 LCD	LCD にアップロード
+Tarih ve saati eşitle	Sync date and time	Sincronizar fecha y hora	同步日期和时间	日時を同期
+63 × 5 LED animasyonu	63 × 5 LED animation	Animación LED de 63 × 5	63 × 5 LED 动画	63 × 5 LED アニメーション
+Kaynak	Source	Origen	来源	ソース
+Metin (en fazla 48 karakter)	Text (up to 48 characters)	Texto (hasta 48 caracteres)	文字（最多 48 个字符）	テキスト（最大 48 文字）
+Yazı rengi	Text color	Color del texto	文字颜色	文字色
+GIF veya görsel seç…	Choose GIF or image…	Elegir GIF o imagen…	选择 GIF 或图像…	GIF または画像を選択…
+Gecikme	Delay	Retardo	延迟	遅延
+Hedef	Target	Destino	目标	保存先
+Yükleme seçili animasyonun yerini alır. Kullanım paneline döndüğünde canlı kullanım görünümü yeniden başlar.	Upload replaces the selected animation. Returning to the dashboard resumes the live usage display.	La carga sustituye la animación seleccionada. Al volver al panel se reanuda la visualización de uso en directo.	上传将替换所选动画。返回面板后会恢复实时使用额度显示。	アップロードすると選択中のアニメーションが置き換わります。パネルに戻ると利用状況のライブ表示が再開します。
+Animasyonu yükle	Upload animation	Cargar animación	上传动画	アニメーションをアップロード
+Ekran ayarları	Screen settings	Ajustes de pantalla	屏幕设置	画面設定
+Ekran ışığı	Screen brightness	Brillo de pantalla	屏幕亮度	画面の明るさ
+Ayar paketi ekran parlaklığıyla birlikte kayıtlı klavye ayarlarını da gönderir. Oyun modu ve Fn davranışı bu sürümde arayüze eklenmedi.	This packet also sends saved keyboard settings with the screen brightness. Game mode and Fn behavior are not exposed in this version.	Este paquete también envía los ajustes guardados del teclado. Esta versión no incluye controles de modo juego ni de Fn.	此数据包会随屏幕亮度一起发送已保存的键盘设置。本版本未提供游戏模式和 Fn 行为的控制项。	画面の明るさとともに保存済みのキーボード設定も送信します。このバージョンではゲームモードと Fn の動作設定は操作できません。
+Parlaklığı uygula	Apply brightness	Aplicar brillo	应用亮度	明るさを適用
+Kullanım paneli USB ekranını yönetiyor.	The usage dashboard controls the USB display.	El panel de uso controla la pantalla USB.	使用额度面板正在控制 USB 显示屏。	利用状況パネルが USB ディスプレイを制御しています。
+Yerel köprüye erişilemiyor.	The local bridge is unavailable.	No se puede acceder al puente local.	无法访问本地桥接服务。	ローカルブリッジに接続できません。
+USB denetimi alınıyor…	Acquiring USB control…	Obteniendo el control USB…	正在获取 USB 控制权…	USB 制御権を取得中…
+Yerel sürücü USB denetimini aldı.	The native driver has USB control.	El controlador nativo tiene el control USB.	原生驱动已获取 USB 控制权。	ネイティブドライバーが USB 制御権を取得しました。
+USB açılamadı.	Could not open USB.	No se pudo abrir USB.	无法打开 USB。	USB を開けませんでした。
+USB denetimi zamanında serbest kalmadı.	USB control was not released in time.	El control USB no se liberó a tiempo.	USB 控制权未及时释放。	USB 制御権が時間内に解放されませんでした。
+Yerel köprü bağlantısı kesildi; USB güvenli biçimde bırakılıyor.	The local bridge disconnected; releasing USB safely.	Se perdió el puente local; liberando USB de forma segura.	本地桥接连接已断开，正在安全释放 USB。	ローカルブリッジとの接続が切れました。USB を安全に解放しています。
+USB başka bir uygulamada. Kullanım panelinden denetimi devralmayı yeniden deneyin.	Another app controls USB. Try acquiring control again from the usage dashboard.	Otra app controla USB. Vuelve a solicitar el control desde el panel de uso.	USB 正由其他应用控制。请从使用额度面板重试获取控制权。	別のアプリが USB を制御しています。利用状況パネルから制御権の取得を再試行してください。
+Birden fazla AMG65 bulundu. Yalnızca ayarlanacak cihazı bağlayın.	More than one AMG65 was found. Connect only the device to configure.	Se encontró más de un AMG65. Conecta solo el que quieras configurar.	检测到多个 AMG65。请仅连接要设置的设备。	複数の AMG65 が見つかりました。設定するデバイスだけを接続してください。
+AMG65 bulunamadı. USB kablosunu ve kablolu modu kontrol edin.	AMG65 not found. Check the USB cable and wired mode.	No se encontró el AMG65. Revisa el cable USB y el modo cableado.	未找到 AMG65。请检查 USB 线缆和有线模式。	AMG65 が見つかりません。USB ケーブルと有線モードを確認してください。
+USB fiziksel aygıt kimliği alınamadı.	Could not identify the physical USB device.	No se pudo identificar el dispositivo USB físico.	无法识别物理 USB 设备。	物理 USB デバイスを識別できませんでした。
+USB güvenlik kaydı okunamadı: {0}	Could not read USB safety record: {0}	No se pudo leer el registro de seguridad USB: {0}	无法读取 USB 安全记录：{0}	USB 安全記録を読み取れません：{0}
+Önceki USB işlemi kesildi. Kabloyu çıkarıp yeniden takın.	The previous USB operation was interrupted. Unplug and reconnect the cable.	La operación USB anterior se interrumpió. Desconecta y vuelve a conectar el cable.	上次 USB 操作已中断。请拔下并重新连接线缆。	前回の USB 操作が中断されました。ケーブルを抜き差ししてください。
+USB açılamadı: {0}	Could not open USB: {0}	No se pudo abrir USB: {0}	无法打开 USB：{0}	USB を開けません：{0}
+USB güvenlik kaydı güncellenemedi: {0}	Could not update USB safety record: {0}	No se pudo actualizar el registro de seguridad USB: {0}	无法更新 USB 安全记录：{0}	USB 安全記録を更新できません：{0}
+Kalıcı USB kilidi yazılamadı: {0}. Kabloyu çıkarın.	Could not save the persistent USB lock: {0}. Unplug the cable.	No se pudo guardar el bloqueo USB persistente: {0}. Desconecta el cable.	无法保存持久 USB 锁定记录：{0}。请拔下线缆。	永続 USB ロックを保存できません：{0}。ケーブルを抜いてください。
+USB işlemi durduruldu. Durumu kontrol edip cihazı yeniden bağlayın.	USB operation stopped. Check the status and reconnect the device.	Se detuvo la operación USB. Revisa el estado y vuelve a conectar el dispositivo.	USB 操作已停止。请检查状态并重新连接设备。	USB 操作を停止しました。状態を確認してデバイスを再接続してください。
+Kablolu AMG65 bağlantısı gerekli.	A wired AMG65 connection is required.	Se necesita una conexión AMG65 por cable.	需要 AMG65 有线连接。	AMG65 の有線接続が必要です。
+Yanıt doğrulanamadı: {0}	Response could not be verified: {0}	No se pudo verificar la respuesta: {0}	无法验证响应：{0}	応答を検証できません：{0}
+Veri sağlama toplamı doğrulanamadı.	Data checksum could not be verified.	No se pudo verificar la suma de comprobación.	无法验证数据校验和。	データのチェックサムを検証できませんでした。
+Onaylandı: {0}	Confirmed: {0}	Confirmado: {0}	已确认：{0}	確認済み：{0}
+Alıcı bağlantısı gerekli.	A receiver connection is required.	Se necesita una conexión al receptor.	需要连接接收器。	レシーバーの接続が必要です。
+Alıcı yanıtı doğrulanamadı: {0}	Receiver response could not be verified: {0}	No se pudo verificar la respuesta del receptor: {0}	无法验证接收器响应：{0}	レシーバーの応答を検証できません：{0}
+{0} alıcı paketi onaylandı.	{0} receiver packets confirmed.	{0} paquetes del receptor confirmados.	已确认 {0} 个接收器数据包。	レシーバーの {0} パケットを確認しました。
+Geçersiz yükleme veya USB bağlantısı.	Invalid upload or USB connection.	Carga o conexión USB no válida.	上传数据或 USB 连接无效。	アップロードまたは USB 接続が無効です。
+Yükleme başlığı onaylanmadı.	Upload header was not acknowledged.	No se confirmó la cabecera de carga.	上传头未得到确认。	アップロードヘッダーが確認されませんでした。
+Blok {0} onaylanmadı; yükleme durdu.	Block {0} was not acknowledged; upload stopped.	No se confirmó el bloque {0}; se detuvo la carga.	块 {0} 未得到确认，上传已停止。	ブロック {0} が確認されなかったため、アップロードを停止しました。
+Yükleme bitişi onaylanmadı.	Upload completion was not acknowledged.	No se confirmó el final de la carga.	上传完成未得到确认。	アップロード完了が確認されませんでした。
+{0}: {1} blok onaylandı.	{0}: {1} blocks confirmed.	{0}: {1} bloques confirmados.	{0}：已确认 {1} 个块。	{0}：{1} ブロックを確認しました。
+USB durum klasörü oluşturulamadı.	Could not create the USB state directory.	No se pudo crear la carpeta de estado USB.	无法创建 USB 状态目录。	USB 状態フォルダーを作成できませんでした。
+USB durum klasörü güvenli değil.	The USB state directory is unsafe.	La carpeta de estado USB no es segura.	USB 状态目录不安全。	USB 状態フォルダーが安全ではありません。
+USB hata kaydı okunamadı.	Could not read the USB fault record.	No se pudo leer el registro de error USB.	无法读取 USB 故障记录。	USB エラー記録を読み取れませんでした。
+USB hata kaydı geçersiz.	The USB fault record is invalid.	El registro de error USB no es válido.	USB 故障记录无效。	USB エラー記録が無効です。
+USB aygıt kimliği geçersiz.	The USB device identity is invalid.	La identidad del dispositivo USB no es válida.	USB 设备标识无效。	USB デバイス識別子が無効です。
+USB aygıt kimliği alınamadı.	Could not obtain the USB device identity.	No se pudo obtener la identidad del dispositivo USB.	无法获取 USB 设备标识。	USB デバイス識別子を取得できませんでした。
+USB hata kaydı yazılamadı.	Could not write the USB fault record.	No se pudo escribir el registro de error USB.	无法写入 USB 故障记录。	USB エラー記録を書き込めませんでした。
+USB hata kaydı boş.	The USB fault record is empty.	El registro de error USB está vacío.	USB 故障记录为空。	USB エラー記録が空です。
+USB hata kaydı tamamlanamadı.	Could not complete the USB fault record.	No se pudo completar el registro de error USB.	无法完成 USB 故障记录。	USB エラー記録を完成できませんでした。
+USB hata kaydı atomik olarak kaydedilemedi.	Could not save the USB fault record atomically.	No se pudo guardar el registro de error USB de forma atómica.	无法原子保存 USB 故障记录。	USB エラー記録をアトミックに保存できませんでした。
+USB hata kilidi aynı bağlantıda kaldı.	The USB fault lock still applies to this attachment.	El bloqueo de error USB sigue activo en esta conexión.	USB 故障锁定仍适用于本次连接。	この接続の USB エラーロックは解除されていません。
+Eski USB hata kaydı kaldırılamadı.	Could not remove the old USB fault record.	No se pudo eliminar el registro de error USB anterior.	无法移除旧 USB 故障记录。	古い USB エラー記録を削除できませんでした。
+Görsel açılamadı. En fazla 32 MB, 130 kare, 8192 px ve 32 MP desteklenir.	Could not open image. Limits: 32 MB, 130 frames, 8192 px and 32 MP.	No se pudo abrir la imagen. Límites: 32 MB, 130 fotogramas, 8192 px y 32 MP.	无法打开图像。上限：32 MB、130 帧、8192 像素和 3200 万像素。	画像を開けません。上限は 32 MB、130 フレーム、8192 ピクセル、3200 万画素です。
+Görsel açılamadı. En fazla 32 MB, 260 kare, 8192 px ve 32 MP desteklenir.	Could not open image. Limits: 32 MB, 260 frames, 8192 px and 32 MP.	No se pudo abrir la imagen. Límites: 32 MB, 260 fotogramas, 8192 px y 32 MP.	无法打开图像。上限：32 MB、260 帧、8192 像素和 3200 万像素。	画像を開けません。上限は 32 MB、260 フレーム、8192 ピクセル、3200 万画素です。
+LED yazı tipi A–Z, 0–9 ve temel noktalama işaretlerini destekler. Diğer karakterler ? olarak gösterilir.	The LED font supports A–Z, 0–9 and basic punctuation. Other characters appear as ?.	La fuente LED admite A–Z, 0–9 y puntuación básica. Los demás caracteres aparecen como ?.	LED 字体支持 A–Z、0–9 和基本标点。其他字符会显示为 ?。	LED フォントは A–Z、0–9、基本的な句読点に対応しています。それ以外の文字は ? で表示されます。
+Kalan kullanım hakları	Remaining usage	Uso restante	剩余使用额度	残りの利用枠
+Yerel bağlantı	Local connection	Conexión local	本地连接	ローカル接続
+Yerel köprüye erişilemiyor. Son değerler güncel olmayabilir.	The local bridge is unavailable. Last known values may be outdated.	El puente local no está disponible. Los últimos valores pueden estar desactualizados.	无法连接本地桥接服务。上次记录的数值可能已过期。	ローカルブリッジに接続できません。前回の値は古い可能性があります。
+Studio’yu aç	Open Studio	Abrir Studio	打开 Studio	Studio を開く
+Saat eşitleme isteği gönderildi.	Clock sync requested.	Se solicitó sincronizar el reloj.	已请求同步时钟。	時刻同期をリクエストしました。
+Saat eşitleme isteği gönderilemedi.	Could not request clock sync.	No se pudo solicitar la sincronización.	无法请求同步时钟。	時刻同期をリクエストできませんでした。
+Bilinmiyor	Unknown	Desconocido	未知	不明
+Eski veri	Stale data	Datos antiguos	旧数据	古いデータ
+Kalan	Remaining	Restante	剩余	残り
+Yenilenme: {0}	Resets: {0}	Se renueva: {0}	重置时间：{0}	リセット：{0}
+Diğer pencereler Studio’da gösterilir.	More windows are shown in Studio.	Hay más ventanas de cuota en Studio.	更多额度窗口请在 Studio 中查看。	その他の利用枠は Studio に表示されます。
+Genel bakış	Overview	Resumen	总览	概要
+Yerel köprü çevrimdışı	Local bridge offline	Puente local sin conexión	本地桥接离线	ローカルブリッジはオフラインです
+Henüz kullanım verisi yok.	No usage data yet.	Aún no hay datos de uso.	暂无使用数据。	利用データはまだありません。
+Sağlayıcı ayrıntılarını göster	Show provider details	Ver detalles del proveedor	查看提供商详情	プロバイダーの詳細を表示
+Ölçüm: {0}	Measured: {0}	Medición: {0}	测量时间：{0}	測定時刻：{0}
+Kullanımı yenileyebilir veya Studio’da ayrıntıları açabilirsiniz.	Refresh usage or open Studio for details.	Actualiza el uso o abre Studio para ver detalles.	刷新使用数据，或打开 Studio 查看详情。	利用状況を更新するか、Studio で詳細を開いてください。
+Yenilenme zamanı bilinmiyor	Reset time unknown	Hora de renovación desconocida	重置时间未知	リセット時刻は不明です
+Kullanımı yenile	Refresh usage	Actualizar uso	刷新使用数据	利用状況を更新
+Ayarlar ve dil	Settings and language	Ajustes e idioma	设置和语言	設定と言語
+Kullanım yenileme isteği gönderildi.	Usage refresh requested.	Se solicitó actualizar el uso.	已请求刷新使用数据。	利用状況の更新をリクエストしました。
+Kullanım yenileme isteği gönderilemedi.	Could not request a usage refresh.	No se pudo solicitar la actualización.	无法请求刷新使用数据。	利用状況の更新をリクエストできませんでした。
+{0} saat	{0}h	{0} h	{0} 小时	{0} 時間
+{0} gün	{0}d	{0} días	{0} 天	{0} 日
+{0} dk	{0}m	{0} min	{0} 分钟	{0} 分
+Gösterim	Display	Visualización	显示	表示
+Hesaplar	Accounts	Cuentas	账户	アカウント
+Canlı LED görünümü	Live LED display	Pantalla LED en vivo	实时 LED 显示	LED ライブ表示
+Toplu görünüm	All providers	Todos los proveedores	所有服务商	すべてのプロバイダー
+Sırayla göster	Rotate providers	Alternar proveedores	轮流显示	順番に表示
+Özel metin	Custom text	Texto personalizado	自定义文字	カスタムテキスト
+En fazla 64 ASCII karakter. LED metni büyük harfle gösterilir.	Up to 64 ASCII characters. LED text appears in uppercase.	Hasta 64 caracteres ASCII. El LED muestra el texto en mayúsculas.	最多 64 个 ASCII 字符，LED 文字以大写显示。	ASCII 文字は64文字まで。LEDには大文字で表示されます。
+Çalışma ve bekleme durumlarını göster	Show work and waiting states	Mostrar actividad y estados de espera	显示工作与等待状态	作業状況と待機状態を表示
+Desteklenen olaylarda çalışma, onay ve bilgi bekleme durumları kullanımın yanında gösterilir.	Supported work, approval and input events appear alongside usage.	Los eventos compatibles de trabajo, aprobación y entrada aparecen junto al uso.	支持的工作、审批和输入事件会与使用情况一起显示。	対応する作業、承認待ち、入力待ちのイベントを利用状況とともに表示します。
+Değişiklikleri geri al	Revert changes	Revertir cambios	撤销更改	変更を戻す
+Metni ve rengi kontrol edin.	Check the text and color.	Revisa el texto y el color.	请检查文字和颜色。	テキストと色を確認してください。
+Ekran ayarları bekleniyor…	Waiting for display settings…	Esperando los ajustes de pantalla…	正在等待显示设置…	表示設定を取得しています…
+Ayar isteği gönderildi.	Settings request sent.	Solicitud de ajustes enviada.	已发送设置请求。	設定の変更を送信しました。
+Ayarlar uygulandı.	Settings applied.	Ajustes aplicados.	设置已应用。	設定を適用しました。
+Ayarlar gönderilemedi. Yerel bağlantıyı kontrol edin.	Could not send settings. Check the local connection.	No se pudieron enviar los ajustes. Revisa la conexión local.	无法发送设置，请检查本地连接。	設定を送信できませんでした。ローカル接続を確認してください。
+Hesabınıza sağlayıcının kendi giriş ekranında bağlanın.	Connect your account through the provider’s own sign-in screen.	Conecta tu cuenta desde la pantalla de inicio de sesión del proveedor.	请通过服务商自己的登录页面连接账户。	プロバイダーのログイン画面からアカウントを接続します。
+Kodu kopyala	Copy code	Copiar código	复制代码	コードをコピー
+Yetkilendirme kodu	Authorization code	Código de autorización	授权码	認証コード
+Kodu gönder	Submit code	Enviar código	提交授权码	コードを送信
+Cursor’da giriş yap	Sign in to Cursor	Iniciar sesión en Cursor	登录 Cursor	Cursor にログイン
+Giriş yap	Sign in	Iniciar sesión	登录	ログイン
+Tarayıcıyı aç	Open browser	Abrir navegador	打开浏览器	ブラウザーを開く
+Cursor uygulamasında giriş yaptıktan sonra kullanımı yenileyin.	Sign in inside the Cursor app, then refresh usage.	Inicia sesión en la aplicación Cursor y actualiza el uso.	在 Cursor 应用中登录后刷新使用情况。	Cursor アプリでログインしてから利用状況を更新してください。
+Giriş başlatılıyor…	Starting sign-in…	Iniciando sesión…	正在启动登录…	ログインを開始しています…
+Tarayıcıda giriş işlemini tamamlayın.	Complete sign-in in your browser.	Completa el inicio de sesión en el navegador.	请在浏览器中完成登录。	ブラウザーでログインを完了してください。
+Tarayıcının verdiği yetkilendirme kodunu girin.	Enter the authorization code from your browser.	Introduce el código de autorización del navegador.	请输入浏览器提供的授权码。	ブラウザーに表示された認証コードを入力してください。
+Giriş tamamlandı. Kullanım yenileniyor.	Signed in. Refreshing usage.	Sesión iniciada. Actualizando el uso.	已登录，正在刷新使用情况。	ログインしました。利用状況を更新しています。
+Giriş iptal edildi.	Sign-in cancelled.	Inicio de sesión cancelado.	登录已取消。	ログインをキャンセルしました。
+Sağlayıcının komut satırı uygulaması bulunamadı.	The provider’s command-line app was not found.	No se encontró la aplicación de línea de comandos del proveedor.	未找到服务商的命令行应用。	プロバイダーのコマンドラインアプリが見つかりません。
+Giriş süresi doldu. Yeniden deneyin.	Sign-in timed out. Try again.	El inicio de sesión caducó. Inténtalo de nuevo.	登录已超时，请重试。	ログインがタイムアウトしました。もう一度お試しください。
+Kod kabul edilmedi. Yeni bir giriş başlatın.	Code rejected. Start a new sign-in.	Código rechazado. Inicia una nueva sesión.	授权码未被接受，请重新登录。	コードが拒否されました。ログインをやり直してください。
+Girişi sağlayıcının uygulamasında tamamlayın.	Complete sign-in in the provider’s app.	Completa el inicio de sesión en la aplicación del proveedor.	请在服务商的应用中完成登录。	プロバイダーのアプリでログインを完了してください。
+Giriş tamamlanamadı. Yeniden deneyin.	Could not finish sign-in. Try again.	No se pudo completar el inicio de sesión. Inténtalo de nuevo.	无法完成登录，请重试。	ログインを完了できませんでした。もう一度お試しください。
+Kullanım bilgisi güncel.	Usage information is current.	La información de uso está actualizada.	使用情况已更新。	利用状況は最新です。
+Kullanım bilgisi için hesabınızı bağlayın.	Connect your account to see usage.	Conecta tu cuenta para ver el uso.	连接账户以查看使用情况。	利用状況を表示するにはアカウントを接続してください。
+Hesap işlemi tamamlanamadı. Yeniden deneyin.	The account action failed. Try again.	La operación de cuenta falló. Inténtalo de nuevo.	账户操作失败，请重试。	アカウント操作に失敗しました。もう一度お試しください。
+Yalnızca {0}	{0} only	Solo {0}	仅 {0}	{0} のみ
+İptal	Cancel	Cancelar	取消	キャンセル
+Görünüm	View	Vista	视图	表示
+Uygula	Apply	Aplicar	应用	適用
+Claude, Studio’nun özel giriş klasörüne güvenmenizi istiyor.	Claude asks you to trust Studio’s private sign-in folder.	Claude te pide confiar en la carpeta privada de Studio para iniciar sesión.	Claude 请求您信任 Studio 专用的登录文件夹。	Claude が Studio の非公開のログイン用フォルダを信頼する許可を求めています。
+Giriş klasörüne güven ve devam et	Trust sign-in folder and continue	Confiar en la carpeta y continuar	信任登录文件夹并继续	ログイン用フォルダを信頼して続行
+Claude giriş izni bekliyor.	Claude is waiting for sign-in permission.	Claude espera permiso para iniciar sesión.	Claude 正在等待登录许可。	Claude がログインの許可を待っています。

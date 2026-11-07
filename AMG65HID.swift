@@ -80,7 +80,14 @@ final class Keyboard {
                 observed.append(reply.prefix(8).map { String(format: "%02x", $0) }.joined(separator: " "))
                 // On this AMG65, zero-flush returns 00 00 00 FF instead of 04 41 00 01.
                 // Verified on the connected device; permit this only for the zero flush.
-                let normalAck = reply.count >= 4 && reply[0] == 4 && reply[1] == expected && reply[2] == 0 && reply[3] == 1
+                let matchingEnvelope = reply.count >= 4 && reply[0] == 4 && reply[1] == expected && reply[2] == 0
+                if matchingEnvelope && reply[3] != 1 {
+                    // A negative status is a response, not a timeout. Its exact
+                    // meaning and retry safety are not guaranteed by firmware.
+                    healthy = false
+                    throw BridgeError(String(format: "USB rejected opcode 0x%02X with status 0x%02X after %d accepted packets; sending stopped. Reconnect the keyboard.", expected, reply[3], packets))
+                }
+                let normalAck = matchingEnvelope && reply[3] == 1
                 let flushAck = flush && reply.starts(with: [0, 0, 0, 0xff])
                 if normalAck || flushAck {
                     if let checksum {

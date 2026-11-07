@@ -1,4 +1,4 @@
-"""Schema/age/privacy checks for the CodexBar bridge (no network or credentials)."""
+"""Schema/age/privacy checks for the independent Studio engine (no network or credentials)."""
 
 from datetime import datetime, timezone
 import json
@@ -97,77 +97,93 @@ class NormalizeTests(unittest.TestCase):
 
 class AdapterTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
+        self.temp=tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
-        self.cache = self.root / "usage.json"
-        self.adapter = UsageAdapter(cache_path=self.cache, history_dir=None)
+        self.cache=Path(self.temp.name)/"usage.json"
+        self.adapter=UsageAdapter(cache_path=self.cache,autostart=False)
+        self.addCleanup(self.adapter.close)
 
-    def write_cache(self, entries):
-        self.cache.write_text(json.dumps({"entries": entries}))
-        self.cache.chmod(0o600)
+    def row(self, fingerprint='a'*64, error=None):
+        row=payload()
+        row['accountFingerprint']=fingerprint
+        if error:
+            row.pop('usage')
+            row['error']={'code':error}
+        return row
 
-    def test_cache_is_default_and_never_launches_cli(self):
-        self.write_cache([payload()])
-        with patch.object(self.adapter, "_fetch", side_effect=AssertionError("No subprocess")):
-            snapshot = self.adapter.snapshot(now=NOW)
-        self.assertEqual(snapshot["providers"][0]["remaining_percent"], 80)
-        self.assertEqual(snapshot["providers"][0]["source"], "codexbar-cache")
-        self.assertIsNone(snapshot["providers"][1]["remaining_percent"])
+    def test_private_cache_has_no_identity_and_no_credentials(self):
+        row=self.row()
+        row.update(email='user@example.com',accessToken='SECRET')
+        row['usage']['accountEmail']='user@example.com'
+        self.adapter._merge([row],NOW)
+        stored=self.cache.read_text()
+        self.assertNotIn('SECRET',stored)
+        self.assertNotIn('user@example.com',stored)
+        self.assertEqual(self.cache.stat().st_mode & 0o777,0o600)
+        visible=json.dumps(self.adapter.snapshot(now=NOW))
+        self.assertNotIn('a'*64,visible)
+        self.assertEqual(self.adapter.snapshot(now=NOW)['providers'][0]['remaining_percent'],80)
 
-    def test_nonprivate_symlink_and_corrupt_cache_unavailable(self):
-        self.write_cache([payload()])
-        self.cache.chmod(0o644)
-        self.assertIsNone(self.adapter.snapshot(now=NOW)["providers"][0]["remaining_percent"])
+    def test_snapshot_never_blocks_on_fetch(self):
+        import threading
+        entered=threading.Event(); release=threading.Event()
+        def fetch():
+            entered.set(); release.wait(2)
+            return [self.row()]
+        with patch.object(self.adapter,'_fetch_all',side_effect=fetch):
+            result=self.adapter.snapshot(refresh=True,now=NOW)
+            self.assertTrue(entered.wait(1))
+            self.assertIsNone(result['providers'][0]['remaining_percent'])
+            self.assertFalse(self.adapter.request_refresh(force=True))
+            release.set(); self.adapter._thread.join(2)
+            self.assertEqual(self.adapter.snapshot(now=NOW)['providers'][0]['remaining_percent'],80)
+
+    def test_same_account_network_failure_preserves_measured_time_as_stale(self):
+        self.adapter._merge([self.row()],NOW)
+        self.adapter._merge([self.row(error='network_error')],NOW)
+        row=self.adapter.snapshot(now=NOW)['providers'][0]
+        self.assertEqual(row['remaining_percent'],80)
+        self.assertTrue(row['stale'])
+        self.assertEqual(row['updated_at'],'2026-11-07T08:29:00Z')
+        self.assertEqual(row['error'],'network_error')
+
+    def test_different_or_missing_identity_never_reuses_previous_account(self):
+        for fingerprint in ('b'*64,None):
+            self.adapter._merge([self.row()],NOW)
+            self.adapter._merge([self.row(fingerprint,error='network_error')],NOW)
+            self.assertIsNone(self.adapter.snapshot(now=NOW)['providers'][0]['remaining_percent'])
+
+    def test_auth_failure_clears_previous_measurement(self):
+        self.adapter._merge([self.row()],NOW)
+        self.adapter._merge([self.row(error='relogin_required')],NOW)
+        row=self.adapter.snapshot(now=NOW)['providers'][0]
+        self.assertIsNone(row['remaining_percent'])
+        self.assertEqual(row['error'],'relogin_required')
+
+    def test_cache_reloaded_without_codexbar_or_network(self):
+        self.adapter._merge([self.row()],NOW)
+        loaded=UsageAdapter(cache_path=self.cache,autostart=False)
+        with patch.object(loaded,'_fetch_all',side_effect=AssertionError('No network')):
+            self.assertEqual(loaded.snapshot(now=NOW)['providers'][0]['remaining_percent'],80)
+        loaded.close()
+
+    def test_nonprivate_symlink_corrupt_cache_rejected(self):
+        self.cache.write_text(json.dumps({'entries':[self.row()]})); self.cache.chmod(0o644)
+        self.assertIsNone(UsageAdapter(cache_path=self.cache,autostart=False).snapshot(now=NOW)['providers'][0]['remaining_percent'])
         self.cache.unlink()
-        target = self.root / "target.json"
-        target.write_text(json.dumps({"entries": [payload()]}))
-        target.chmod(0o600)
+        target=self.cache.with_name('target.json'); target.write_text(json.dumps({'entries':[self.row()]})); target.chmod(0o600)
         self.cache.symlink_to(target)
-        self.assertIsNone(self.adapter.snapshot(now=NOW)["providers"][0]["remaining_percent"])
-        self.cache.unlink()
-        self.cache.write_text("{broken")
-        self.cache.chmod(0o600)
-        self.assertIsNone(self.adapter.snapshot(now=NOW)["providers"][0]["remaining_percent"])
+        self.assertIsNone(UsageAdapter(cache_path=self.cache,autostart=False).snapshot(now=NOW)['providers'][0]['remaining_percent'])
+        self.cache.unlink(); self.cache.write_text('{broken'); self.cache.chmod(0o600)
+        self.assertIsNone(UsageAdapter(cache_path=self.cache,autostart=False).snapshot(now=NOW)['providers'][0]['remaining_percent'])
 
-    def test_failed_refresh_preserves_but_marks_last_known(self):
-        self.write_cache([payload()])
-        with patch.object(self.adapter, "_fetch", side_effect=lambda provider, now:
-                          normalize_usage(provider, {"error": {}}, now=now)):
-            snapshot = self.adapter.snapshot(refresh=True, now=NOW)
-        result = snapshot["providers"][0]
-        self.assertEqual(result["remaining_percent"], 80)
-        self.assertTrue(result["stale"])
-        self.assertTrue(result["windows"][0]["stale"])
-        self.assertEqual(result["updated_at"], "2026-11-07T08:29:00Z")
-
-    def test_history_preserves_each_window_measurement(self):
-        history = {"preferredAccountKey": "preferred", "accounts": {"preferred": [
-            {"name": "session", "windowMinutes": 300, "entries": [
-                {"capturedAt": "2026-10-30T07:00:00Z", "resetsAt": "2026-10-30T12:00:00Z", "usedPercent": 1}]},
-            {"name": "weekly", "windowMinutes": 10080, "entries": [
-                {"capturedAt": "2026-11-07T08:29:00Z", "resetsAt": "2026-11-12T12:00:00Z", "usedPercent": 10}]}]}}
-        (self.root / "claude.json").write_text(json.dumps(history))
-        adapter = UsageAdapter(cache_path=self.cache, history_dir=self.root)
-        result = adapter.snapshot(now=NOW)["providers"][0]
-        self.assertEqual(result["remaining_label"], "7d")
-        self.assertTrue(result["stale"])
-        self.assertEqual(result["error"], "history_only")
-        session = next(w for w in result["windows"] if w["id"] == "primary")
-        self.assertEqual(session["updated_at"], "2026-10-30T07:00:00Z")
-        self.assertTrue(session["stale"])
-        self.assertNotIn("preferred", json.dumps(result))
-
-    def test_history_never_guesses_account(self):
-        (self.root / "claude.json").write_text(json.dumps({"accounts": {"somebody": []}}))
-        result = UsageAdapter(cache_path=self.cache, history_dir=self.root).snapshot(now=NOW)
-        self.assertIsNone(result["providers"][0]["remaining_percent"])
+    def test_malformed_error_is_bounded_to_safe_code(self):
+        self.adapter._merge([{'provider':'claude','error':{'code':{'token':'SECRET'}}}],NOW)
+        self.assertNotIn('SECRET',json.dumps(self.adapter.snapshot(now=NOW)))
 
     def test_validates_configuration(self):
-        for kwargs in ({"max_age": 0}, {"timeout": -1}, {"max_age": float("nan")}):
-            with self.assertRaises(ValueError):
-                UsageAdapter(**kwargs)
+        for kwargs in ({'max_age':0},{'timeout':-1},{'max_age':float('nan')},{'refresh_interval':True}):
+            with self.assertRaises(ValueError): UsageAdapter(**kwargs)
 
 
-if __name__ == "__main__":
-    unittest.main()
+if __name__ == '__main__': unittest.main()

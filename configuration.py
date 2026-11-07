@@ -3,7 +3,7 @@ import math
 import re
 
 DEFAULTS = {'display_mode':'overview','brightness':0.4,'text':'AMG65 STUDIO',
-            'text_color':'#7bdcb0'}
+            'text_color':'#7bdcb0','activity_enabled':True}
 LIGHTING = {'mode':1,'color':'#7bdcb0','brightness':3,'speed':3,'colorful':False}
 
 def color(value):
@@ -21,6 +21,8 @@ def settings_patch(value):
         b=value['brightness']
         if type(b) not in (int,float) or not math.isfinite(b) or not 0<=b<=1:
             raise ValueError('Ekran parlaklığı 0 ile 1 arasında olmalı.')
+    if 'activity_enabled' in value and type(value['activity_enabled']) is not bool:
+        raise ValueError('activity_enabled bir boolean olmalı.')
     if 'text' in value:
         s=value['text']
         if not isinstance(s,str) or len(s)>64 or any(not 32<=ord(c)<=126 for c in s):

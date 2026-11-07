@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local CodexBar companion for the AMG65 matrix and RTC. No dependencies."""
+"""Local Studio service for provider quotas, account login and the AMG65 display."""
 from __future__ import annotations
 
 import argparse
@@ -19,15 +19,37 @@ import subprocess
 import threading
 import time
 
-from renderer import render_overview, render_detail, render_text
+from renderer import select_activity, render_activity, render_overview, render_detail, render_text
 from usage_adapter import UsageAdapter
+from activity import ActivityCollector
+from account_auth import AccountManager
 from configuration import DEFAULTS, LIGHTING, settings_patch, lighting_request
 
 BASE = Path(__file__).resolve().parent
 PORT = 47866
-CACHE_INTERVAL = 10
+CACHE_INTERVAL = 2
 RECONNECT_INTERVAL = 15
 SYNC_INTERVAL = 6 * 60 * 60
+DEVICE_CODES = {
+    'USB bağlantısı bekleniyor':'waiting',
+    'LEOBOG AMG65 · USB bağlı':'ready',
+    'Saat eşitlendi · USB hazır':'ready',
+    'LED aktarımı etkin · USB onaylı':'streaming',
+    'USB kontrolü yerel sürücüde':'native_control',
+    'Önizleme modu · USB aktarımı kapalı':'no_device',
+    'USB yanıtı kesildi. Kabloyu çıkarıp yeniden takın.':'fault_reconnect',
+    'Yerel sürücü USB hatası bildirdi; kabloyu yeniden bağlayın.':'fault_reconnect',
+    'USB hata kaydı okunamıyor; güvenli bağlantı için kayıt onarılmalı.':'fault_record',
+}
+OPERATION_CODES = {
+    'Hazır':'ready',
+    'Saat eşitleniyor…':'syncing',
+    'Klavye saati Mac ile eşitlendi.':'synced',
+    'LED aktarım tercihi kaydedildi.':'display_saved',
+    'Ekran ayarları kaydedildi.':'settings_saved',
+    'Aydınlatma uygulanıyor…':'lighting_applying',
+    'Aydınlatma cihaz tarafından onaylandı.':'lighting_applied',
+}
 
 
 def iso_now():
@@ -91,7 +113,10 @@ class Application:
     def __init__(self, state_dir, no_device=False):
         self.state_dir = Path(state_dir)
         self.no_device = no_device
-        self.adapter = UsageAdapter()
+        self.adapter = UsageAdapter(cache_path=self.state_dir / "usage.json")
+        self.activity = ActivityCollector(self.state_dir)
+        self.accounts = AccountManager(self.state_dir)
+        self._completed_logins = {}
         self.lock = threading.RLock()
         self.quit = threading.Event()
         self.commands = queue.Queue(maxsize=8)
@@ -113,11 +138,11 @@ class Application:
         except (OSError, ValueError):
             pass
         self.state = self.adapter.snapshot()
-        self.state.update(device={'connected': False, 'message': 'USB bağlantısı bekleniyor', 'last_sync': None},
+        self.state.update(device={'connected': False, 'code':'waiting', 'message': 'USB bağlantısı bekleniyor', 'last_sync': None},
                           running=self.display, matrix={'pixels':render_overview(self.state), 'view':'overview'},
                           settings=copy.deepcopy(self.settings), hardware_owner='dashboard',
-                          product={'id':'amg65-studio','version':'0.1.0'},
-                          operation={'pending':False,'message':'Hazır'})
+                          product={'id':'amg65-studio','version':'0.3.0'},
+                          operation={'pending':False,'code':'ready','message':'Hazır'})
 
     def read_blocked_identity(self):
         try:
@@ -143,6 +168,19 @@ class Application:
         with self.lock:
             return copy.deepcopy(self.state)
 
+    def account_snapshot(self):
+        result=self.accounts.snapshot()
+        providers={row['id']:row for row in self.snapshot().get('providers',[])}
+        for row in result.get('accounts',[]):
+            usage=providers.get(row.get('provider'),{})
+            row['usage']={key:usage.get(key) for key in ('remaining_percent','remaining_label','stale','error','updated_at')}
+            provider=row.get('provider'); marker=row.get('expires_at')
+            with self.lock:
+                completed=row.get('phase')=='complete' and self._completed_logins.get(provider,object())!=marker
+                if completed: self._completed_logins[provider]=marker
+            if completed: self.adapter.request_refresh(force=True)
+        return result
+
     def request(self, command, **params):
         try:
             self.commands.put_nowait((command, params))
@@ -151,7 +189,8 @@ class Application:
 
     def operation(self, message, pending=False, ok=True):
         with self.lock:
-            self.state['operation']={'message':message,'pending':pending,'ok':ok,'updated_at':iso_now()}
+            self.state['operation']={'message':message,'code':OPERATION_CODES.get(message,'error'),
+                                     'pending':pending,'ok':ok,'updated_at':iso_now()}
 
     def save_settings(self):
         temporary=self.state_dir/'settings.tmp'
@@ -176,6 +215,8 @@ class Application:
         self.device_status(connected=False,message='USB kontrolü yerel sürücüde')
 
     def device_status(self, **values):
+        if 'message' in values:
+            values['code']=DEVICE_CODES.get(values['message'],'transport_error')
         with self.lock:
             self.state['device'].update(values)
 
@@ -227,6 +268,7 @@ class Application:
             if tick >= next_cache:
                 try:
                     snapshot = self.adapter.snapshot()
+                    snapshot["activity"] = self.activity.snapshot()
                     with self.lock:
                         self.state.update(snapshot)
                 except Exception:
@@ -243,6 +285,7 @@ class Application:
                     except queue.Empty:
                         break
                     if command == 'refresh':
+                        self.adapter.request_refresh(force=True)
                         next_cache = 0
                     elif command == 'control':
                         if params['owner']=='native':
@@ -296,7 +339,12 @@ class Application:
                 phase = int(tick - started) % 24
                 mode=self.settings['display_mode']
                 brightness=self.settings['brightness']
-                if mode=='text':
+                activity=select_activity(snapshot.get('activity'),tick-started) if self.settings.get('activity_enabled',True) else None
+                if activity:
+                    pixels=render_activity(activity,snapshot,brightness,tick-started)
+                    view='activity'
+                    with self.lock: self.state['activity']['selected']=activity
+                elif mode=='text':
                     pixels=render_text(self.settings['text'],self.settings['text_color'],brightness,tick-started)
                     view='text'
                 elif mode=='overview' or phase < 12:
@@ -355,6 +403,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, (BASE/'dashboard.html').read_bytes(), 'text/html; charset=utf-8')
         if self.path == '/api/status':
             return self.reply(200, self.server.application.snapshot())
+        if self.path == '/api/accounts':
+            return self.reply(200, self.server.application.account_snapshot())
         if self.path == '/favicon.ico':
             return self.reply(204, b'')
         self.reply(404, {'error':'Not found'})
@@ -363,17 +413,27 @@ class Handler(BaseHTTPRequestHandler):
         origin = self.headers.get('Origin')
         allowed_origins = {f'http://127.0.0.1:{self.server.server_port}', f'http://localhost:{self.server.server_port}'}
         if not self.allowed() or origin not in allowed_origins:
-            return self.reply(403, {'error':'Same-origin requests only'})
+            return self.reply(403, {'error':'Same-origin requests only','code':'forbidden'})
         if self.headers.get('Content-Type','').split(';')[0] != 'application/json':
-            return self.reply(415, {'error':'JSON required'})
+            return self.reply(415, {'error':'JSON required','code':'invalid_request'})
         try:
             length = int(self.headers.get('Content-Length','0'))
             if not 0 <= length <= 4096:
-                return self.reply(413, {'error':'Request too large'})
+                return self.reply(413, {'error':'Request too large','code':'invalid_request'})
             payload = json.loads(self.rfile.read(length) or b'{}')
             if not isinstance(payload, dict):
                 raise ValueError('Invalid request')
-            if self.path == '/api/display':
+            if self.path in ('/api/accounts/start','/api/accounts/submit','/api/accounts/cancel'):
+                action=self.path.rsplit('/',1)[-1]
+                expected={'provider','code'} if action=='submit' else {'provider'}
+                if set(payload)!=expected or payload.get('provider') not in ('claude','codex','cursor'):
+                    raise ValueError('Invalid account request')
+                manager=self.server.application.accounts
+                if action=='submit': manager.submit(payload['provider'],payload['code'])
+                elif action=='start': manager.start(payload['provider'])
+                else: manager.cancel(payload['provider'])
+                return self.reply(202, {'ok':True})
+            elif self.path == '/api/display':
                 if type(payload.get('enabled')) is not bool:
                     raise ValueError('enabled must be boolean')
                 self.server.application.request('display', enabled=payload['enabled'])
@@ -394,7 +454,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(404, {'error':'Not found'})
             self.reply(202, {'ok':True, 'message':'İstek alındı; durum ekranda güncelleniyor.'})
         except (ValueError, UnicodeDecodeError) as error:
-            self.reply(400, {'error':str(error)})
+            self.reply(400, {'error':str(error),'code':'invalid_request'})
 
 
 def main():
@@ -429,6 +489,8 @@ def main():
     finally:
         app.quit.set()
         worker.join()
+        app.adapter.close()
+        app.accounts.close()
         server.shutdown(); server.server_close()
         lockfile.close()
 

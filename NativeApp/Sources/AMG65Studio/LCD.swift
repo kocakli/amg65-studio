@@ -177,6 +177,7 @@ final class ScreenModel: ObservableObject {
 
     func chooseFile() {
         let panel = NSOpenPanel()
+        panel.title = L("Görsel seç…"); panel.prompt = L("Seç")
         panel.allowedContentTypes = [.gif, .png, .jpeg, .image]
         panel.allowsMultipleSelection = false
         if panel.runModal() == .OK, let url = panel.url { load(url) }

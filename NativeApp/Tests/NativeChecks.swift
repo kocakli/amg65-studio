@@ -6,7 +6,7 @@ import Darwin
 
 /// Exercises production encoding and decode guards only. Never constructs KeyboardHID,
 /// opens USB, requests microphone access, changes keymaps, or contacts the backend.
-@main struct NativeChecks {
+@main @MainActor struct NativeChecks {
     static var count = 0
     static func check(_ value:@autoclosure()->Bool,_ name:String) {
         guard value() else { fatalError("FAILED: \(name)") }
@@ -23,7 +23,7 @@ import Darwin
         for _ in 0..<count { CGImageDestinationAddImage(destination,image,nil) }
         check(CGImageDestinationFinalize(destination),"fixture encoding")
     }
-    static func main() throws {
+    static func main() async throws {
         check(KeyboardHID.validACK([4,0x18,0,1],opcode:0x18),"valid begin acknowledgement")
         check(!KeyboardHID.validACK([4,0x41,0,1],opcode:0x18),"wrong opcode rejected")
         check(!KeyboardHID.validACK([4,0x18,0],opcode:0x18),"short acknowledgement rejected")
@@ -105,6 +105,130 @@ import Darwin
         defer { if let old {defaults.set(old,forKey:key)} else {defaults.removeObject(forKey:key)} }
         defaults.set(-100,forKey:key); check(CustomLightModel(preview:[:]).brightness==1,"negative stored brightness clamped")
         defaults.set(Int.max,forKey:key); check(CustomLightModel(preview:[:]).brightness==5,"overflowing stored brightness clamped")
+        let catalogs=LocalizationCatalog(directory:URL(fileURLWithPath:CommandLine.arguments[1],isDirectory:true))
+        let catalogKeys=Set(catalogs.tables["tr"]!.keys)
+        check(catalogKeys.count>=219 && LocalizationCatalog.codes.allSatisfy { Set(catalogs.tables[$0]!.keys)==catalogKeys },"five complete local catalogs")
+        check(catalogs.text("Aydınlatma",language:"en")=="Lighting","English native label")
+        check(catalogs.text("Aydınlatma",language:"es")=="Iluminación","Spanish native label")
+        check(catalogs.text("Aydınlatma",language:"zh-Hans")=="灯光","Simplified Chinese native label")
+        check(catalogs.text("Aydınlatma",language:"ja")=="ライティング","Japanese native label")
+        check(catalogs.text("Aydınlatma",language:"tr")=="Aydınlatma","Turkish retained")
+        check(catalogs.text("Onaylandı: colour data 2/8",language:"en")=="Confirmed: color data 2/8","existing nested diagnostic translated at display")
+        check(catalogs.text("Blok 12 onaylanmadı; yükleme durdu.",language:"es")=="No se confirmó el bloque 12; se detuvo la carga.","dynamic diagnostic preserves block number")
+        let filename="{1}-$1-\\.gif"
+        check(catalogs.format("{0} · {1} kare",arguments:[filename,"2"],language:"en")==filename+" · 2 frames","format does not reinterpret user placeholders or escapes")
+        check(catalogs.text(filename+" · 2 kare",language:"en")==filename+" · 2 frames","diagnostic substitution does not reinterpret captured placeholders")
+        check(StudioLanguage.resolve(["fr-FR","ja-JP"])=="ja","System selects first supported language")
+        check(StudioLanguage.resolve(["zh-TW"])=="zh-Hans","Chinese variants select supported Simplified Chinese")
+        check(StudioLanguage.resolve(["de-DE"])=="en","unsupported System language falls back to English")
+        let suite="AMG65LocalizationChecks-\(UUID().uuidString)"
+        let isolated=UserDefaults(suiteName:suite)!
+        defer { isolated.removePersistentDomain(forName:suite) }
+        let language=StudioLanguage(defaults:isolated,catalog:catalogs)
+        check(language.selection=="tr","upgrade preserves Turkish default")
+        language.selection="ja"
+        check(StudioLanguage(defaults:isolated,catalog:catalogs).selection=="ja","language preference persists")
+        check(language.dashboardURL.fragment=="native&lang=ja","native language passes through dashboard fragment")
+        language.selection="invalid"
+        check(language.selection=="tr","invalid stored selection is bounded")
+        let quotaJSON = #"{"providers":[{"id":"claude","remaining_percent":80,"remaining_label":"5h","stale":false,"updated_at":"2026-11-07T08:00:00Z","windows":[{"id":"primary","label":"5h","remaining_percent":80,"stale":false,"updated_at":"2026-11-07T08:00:00Z","resets_at":"2026-11-07T13:00:00Z"},{"id":"secondary","label":"7d","remaining_percent":10,"stale":false,"updated_at":"2026-11-07T08:00:00Z","resets_at":null}]}],"hardware_owner":"dashboard","device":{"connected":true}}"#
+        let usage=try JSONDecoder().decode(MenuUsageSnapshot.self,from:Data(quotaJSON.utf8))
+        let current=MenuUsageSnapshot.date("2026-11-07T08:01:00.000Z")!
+        check(usage.orderedProviders.map(\.id)==["claude","cursor","codex"],"menu uses fixed three-provider order")
+        check(usage.orderedProviders[1].remaining==nil && usage.orderedProviders[2].remaining==nil,"missing menu provider stays unknown, not zero")
+        check(usage.providers[0].remaining==80 && usage.providers[0].visibleWindows[1].remaining==10,"menu keeps independent quotas, never aggregates")
+        check(!usage.providers[0].isStale(at:current,offline:false),"fresh menu quota remains fresh")
+        check(usage.providers[0].isStale(at:current,offline:true),"unreachable bridge marks retained quota stale")
+        check(usage.providers[0].isStale(at:current.addingTimeInterval(901),offline:false),"menu ages quota from measurement time")
+        check(usage.providers[0].visibleWindows[0].isStale(at:current.addingTimeInterval(18000),offline:false),"expired menu reset remains stale")
+        check(MenuUsageSnapshot.validPercent(0)==0 && MenuUsageSnapshot.validPercent(100)==100,"menu preserves measured zero and full allowance")
+        check(MenuUsageSnapshot.validPercent(nil)==nil && MenuUsageSnapshot.validPercent(-1)==nil && MenuUsageSnapshot.validPercent(101)==nil,"invalid menu percentage stays unknown")
+        check(MenuUsageSnapshot.validPercent(.nan)==nil && MenuUsageSnapshot.validPercent(.infinity)==nil,"nonfinite menu percentage stays unknown")
+        check(MenuUsageSnapshot.old(nil,now:current) && MenuUsageSnapshot.old("2026-11-08T00:00:00Z",now:current),"unknown and future measurements marked stale")
+        var booleanRejected=false
+        do { _ = try JSONDecoder().decode(MenuUsageSnapshot.self,from:Data(quotaJSON.replacingOccurrences(of:"\"remaining_percent\":80",with:"\"remaining_percent\":true").utf8)) }
+        catch { booleanRejected=true }
+        check(booleanRejected,"boolean menu quota is rejected")
+        check(usage.providers[0].selectedWindow?.id=="primary","overview reset is tied to the selected quota window")
+        let resetExpired=MenuUsageSnapshot.date("2026-11-07T13:00:01Z")!
+        let updatedUsage=try JSONDecoder().decode(MenuUsageSnapshot.self,from:Data(quotaJSON.replacingOccurrences(of:"2026-11-07T08:00:00Z",with:"2026-11-07T12:59:59Z").utf8))
+        check(updatedUsage.providers[0].isStale(at:resetExpired,offline:false),"headline cannot show fresh after selected reset expires")
+        check(MenuUsageSnapshot.windowLabel("720h",catalog:catalogs,language:"ja")=="720 時間","arbitrary hour windows localize")
+        check(MenuUsageSnapshot.windowLabel("60m",catalog:catalogs,language:"zh-Hans")=="60 分钟","minute windows localize")
+        check(MenuUsageSnapshot.windowLabel("1.5h",catalog:catalogs,language:"es")=="1,5 h","fractional window labels use locale decimal separator")
+        check(MenuUsageSnapshot.windowLabel("7d",catalog:catalogs,language:"tr")=="7 gün","day window labels localize")
+        check(MenuUsageSnapshot.windowLabel("Custom plan",catalog:catalogs,language:"ja")=="Custom plan","unknown named window label remains unchanged")
+        check(MenuUsageSnapshot.windowLabel("Fable only",catalog:catalogs,language:"tr")=="Yalnızca Fable","dynamic model-only window localizes")
+        check(MenuUsageSnapshot.windowLabel("Team pool",catalog:catalogs,language:"ja")=="チーム共有枠","team pool is not mislabeled personal usage")
+        var sentSettings:[String:Any]=[:]
+        let display=MenuDisplayModel(send:{ path,data in
+            check(path=="api/settings","display uses settings endpoint for unchanged enable state")
+            sentSettings=(try JSONSerialization.jsonObject(with:data)) as! [String:Any]
+        })
+        func displaySnapshot(_ value:MenuDisplaySettings)->MenuUsageSnapshot {
+            let settings=(try! JSONSerialization.jsonObject(with:JSONEncoder().encode(value))) as! [String:Any]
+            let data=try! JSONSerialization.data(withJSONObject:["providers":[],"settings":settings,"running":true])
+            return try! JSONDecoder().decode(MenuUsageSnapshot.self,from:data)
+        }
+        let initialSettings=MenuDisplaySettings()
+        display.receive(displaySnapshot(initialSettings))
+        display.draft.text="hello";display.draft.textColor="#ABCDEF"
+        display.receive(displaySnapshot(initialSettings))
+        check(display.draft.text=="hello" && display.dirty,"polling preserves unsaved display draft")
+        await display.save()
+        check(sentSettings["text"] as? String=="HELLO" && sentSettings["text_color"] as? String=="#abcdef","display request matches backend canonicalization")
+        display.draft.text="new draft"
+        var ack=initialSettings;ack.text="HELLO";ack.textColor="#abcdef"
+        display.receive(displaySnapshot(ack))
+        check(display.draft.text=="new draft" && display.dirty,"late settings acknowledgement preserves newer edit")
+        display.discard()
+        check(display.draft==ack && !display.dirty,"discard restores acknowledged canonical settings")
+        display.draft.text="last"
+        await display.save()
+        ack.text="LAST";display.receive(displaySnapshot(ack))
+        check(display.draft.text=="LAST" && !display.dirty,"unchanged sent draft canonicalizes on acknowledgement")
+        var invalid=initialSettings;invalid.text="非ASCII"
+        check(!invalid.valid,"unsupported LED text rejected before submission")
+        invalid=initialSettings;invalid.brightness=Double.nan
+        check(!invalid.valid,"nonfinite display brightness rejected")
+        check(MenuAccountsModel.authorizationURL("https://auth.openai.com/codex/device",provider:"codex") != nil,"Codex device sign-in URL accepted")
+        check(MenuAccountsModel.authorizationURL("https://claude.ai/oauth/authorize?state=test",provider:"claude") != nil,"Claude provider authorization URL accepted")
+        for invalidURL in ["http://auth.openai.com/codex/device","https://auth.openai.com.evil.test/codex/device","https://user:pass@auth.openai.com/codex/device","https://auth.openai.com/not-login","file:///tmp/login"] {
+            check(MenuAccountsModel.authorizationURL(invalidURL,provider:"codex")==nil,"untrusted or unrelated sign-in URL rejected")
+        }
+        let account=try JSONDecoder().decode(MenuAccount.self,from:Data(#"{"provider":"claude","phase":"awaiting_code","expires_at":"2026-11-07T10:00:00Z","input_required":true}"#.utf8))
+        check(account.pending && account.inputRequired==true && account.expiresAt != nil,"account contract decodes ISO timestamp and input phase")
+        let notifications=NotificationCenter(),menuObject=NSObject()
+        var orderedIn=true,visibilityChanges=[Bool]()
+        let visibility=MenuWindowVisibilityObservation(object:menuObject,center:notifications,startTimer:false,
+            isVisible:{orderedIn},onChange:{visibilityChanges.append($0)})
+        visibility.sample()
+        check(visibilityChanges==[true],"ordered-in menu acquires its visible demand")
+        notifications.post(name:NSWindow.didResignKeyNotification,object:menuObject)
+        try await Task.sleep(nanoseconds:5_000_000)
+        check(visibilityChanges==[true],"focus loss to color picker does not release a visible menu")
+        notifications.post(name:NSWindow.didChangeOcclusionStateNotification,object:menuObject)
+        try await Task.sleep(nanoseconds:5_000_000)
+        check(visibilityChanges==[true],"occluded but ordered-in menu stays visible for ownership")
+        orderedIn=false
+        visibility.sample()
+        check(visibilityChanges==[true,false],"fallback visibility sample catches orderOut without a notification")
+        orderedIn=true
+        notifications.post(name:NSWindow.didBecomeKeyNotification,object:menuObject)
+        try await Task.sleep(nanoseconds:5_000_000)
+        check(visibilityChanges==[true,false,true],"reopening retained menu reports visible again")
+        notifications.post(name:NSWindow.willCloseNotification,object:menuObject)
+        try await Task.sleep(nanoseconds:5_000_000)
+        check(visibilityChanges.last==false,"willClose releases demand before final orderOut")
+        notifications.post(name:NSWindow.didBecomeKeyNotification,object:menuObject)
+        try await Task.sleep(nanoseconds:5_000_000)
+        check(visibilityChanges.last==true,"reused closed window can become visible again")
+        visibility.stop()
+        let stoppedCount=visibilityChanges.count
+        notifications.post(name:NSWindow.didBecomeKeyNotification,object:menuObject)
+        visibility.sample()
+        try await Task.sleep(nanoseconds:5_000_000)
+        check(visibilityChanges.last==false && visibilityChanges.count==stoppedCount,"detaching observer releases once and removes stale callbacks")
         print("PASS: \(count) native offline checks; no hardware accessed.")
     }
 }

@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from Tools.build_icon import compile_icon
 
 ROOT = Path(__file__).resolve().parent
 APP = ROOT / 'build/AMG65 Studio.app'
@@ -73,9 +74,15 @@ def package(binary,prefix,dylib,app):
     info={'CFBundleName':'AMG65 Studio','CFBundleDisplayName':'AMG65 Studio',
           'CFBundleIdentifier':'io.github.kocakli.amg65studio.desktop',
           'CFBundleExecutable':'AMG65Studio','CFBundlePackageType':'APPL',
-          'CFBundleVersion':'1','CFBundleShortVersionString':'0.1.0',
+          'CFBundleVersion':'8','CFBundleShortVersionString':'0.3.0',
           'LSMinimumSystemVersion':minimum_text,'NSHighResolutionCapable':True,
           'NSPrincipalClass':'NSApplication'}
+    catalogs=ROOT/'Sources/AMG65Studio/Resources/localizations'
+    shutil.copytree(catalogs,resources/'localizations')
+    info['CFBundleLocalizations']=['tr','en','es','zh-Hans','ja']
+    info['CFBundleDevelopmentRegion']='tr'
+    info.update(compile_icon(resources,minimum_macos=minimum_text))
+    shutil.copy2(ROOT/'Resources/AppIcon.png',resources/'AppIcon.png')
     (app/'Contents/Info.plist').write_bytes(plistlib.dumps(info))
     actual_prefix=prefix.resolve()
     for name in ('COPYING','LICENSE','LICENSE.txt'):

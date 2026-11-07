@@ -1,0 +1,120 @@
+Static	Sabit	Static	Fijo	常亮	常時点灯
+Single On	Tek tuş açılma	Single On	Encendido por tecla	单键点亮	押したキーを点灯
+Single Off	Tek tuş sönme	Single Off	Apagado por tecla	单键熄灭	押したキーを消灯
+Glittering	Parıldama	Glittering	Destellos	闪烁	きらめき
+Falling	Düşüş	Falling	Caída	下落	落下
+Colourful	Rengârenk	Colourful	Multicolor	彩色	カラフル
+Breath	Nefes	Breath	Respiración	呼吸	呼吸
+Spectrum	Spektrum	Spectrum	Espectro	光谱	スペクトル
+Outward	Dışa doğru	Outward	Hacia fuera	向外扩散	外向き
+Scrolling	Kayma	Scrolling	Desplazamiento	滚动	スクロール
+Rolling	Yuvarlanma	Rolling	Rodante	滚动波	ローリング
+Rotating	Dönüş	Rotating	Rotación	旋转	回転
+Explode	Patlama	Explode	Explosión	爆发	爆発
+Launch	Fırlatma	Launch	Lanzamiento	发射	発射
+Ripples	Dalgacıklar	Ripples	Ondas	涟漪	波紋
+Flowing	Akış	Flowing	Flujo	流动	フロー
+Pulsating	Nabız	Pulsating	Pulsación	脉冲	パルス
+Tilt	Eğim	Tilt	Inclinación	倾斜	傾斜
+Shuttle	Mekik	Shuttle	Vaivén	穿梭	往復
+Backlight Off	Aydınlatma kapalı	Backlight Off	Retroiluminación apagada	关闭背光	バックライトオフ
+Animation	Animasyon	Animation	Animación	动画	アニメーション
+Boot animation	Açılış animasyonu	Boot animation	Animación de inicio	开机动画	起動アニメーション
+Text	Metin	Text	Texto	文字	テキスト
+GIF / image	GIF / görsel	GIF / image	GIF / imagen	GIF / 图像	GIF／画像
+libusb init failed	libusb başlatılamadı	libusb initialization failed	No se pudo iniciar libusb	libusb 初始化失败	libusb の初期化に失敗しました
+USB list unavailable	USB listesi alınamadı	USB device list unavailable	Lista de dispositivos USB no disponible	无法获取 USB 设备列表	USB デバイス一覧を取得できません
+USB bulk interface cannot open	USB bulk arayüzü açılamadı	Could not open the USB bulk interface	No se pudo abrir la interfaz USB bulk	无法打开 USB 批量传输接口	USB バルクインターフェースを開けません
+The matching physical AMG65 bulk interface was not found	Aynı AMG65 cihazının bulk arayüzü bulunamadı	The matching physical AMG65 bulk interface was not found	No se encontró la interfaz bulk del mismo AMG65	未找到同一物理 AMG65 的批量传输接口	同じ AMG65 のバルクインターフェースが見つかりません
+Cannot claim bulk interface ({0})	Bulk arayüzü alınamadı ({0})	Cannot claim bulk interface ({0})	No se pudo tomar la interfaz bulk ({0})	无法占用批量传输接口（{0}）	バルクインターフェースを確保できません（{0}）
+block write failed ({0})	Blok yazılamadı ({0})	Block write failed ({0})	Falló la escritura del bloque ({0})	块写入失败（{0}）	ブロックの書き込みに失敗しました（{0}）
+begin	başlangıç	begin	inicio	开始	開始
+end	bitiş	end	fin	结束	終了
+apply	uygulama	apply	aplicación	应用	適用
+lighting	aydınlatma	lighting	iluminación	灯光	ライティング
+lighting header	aydınlatma başlığı	lighting header	cabecera de iluminación	灯光头	ライティングヘッダー
+lighting data	aydınlatma verisi	lighting data	datos de iluminación	灯光数据	ライティングデータ
+lighting data (custom mode)	aydınlatma verisi (özel mod)	lighting data (custom mode)	datos de iluminación (modo personalizado)	灯光数据（自定义模式）	ライティングデータ（カスタムモード）
+settings header	ayar başlığı	settings header	cabecera de ajustes	设置头	設定ヘッダー
+settings data	ayar verisi	settings data	datos de ajustes	设置数据	設定データ
+screen header	ekran başlığı	screen header	cabecera de pantalla	屏幕头	画面ヘッダー
+time data	saat verisi	time data	datos de hora	时间数据	時刻データ
+colour table header	renk tablosu başlığı	color table header	cabecera de tabla de colores	颜色表头	カラーテーブルヘッダー
+colour data {0}/8	renk verisi {0}/8	color data {0}/8	datos de color {0}/8	颜色数据 {0}/8	カラーデータ {0}/8
+keymap header	tuş haritası başlığı	key mapping header	cabecera de asignación	按键映射头	キーマップヘッダー
+keymap data {0}/8	tuş haritası verisi {0}/8	key mapping data {0}/8	datos de asignación {0}/8	按键映射数据 {0}/8	キーマップデータ {0}/8
+custom colours	özel renkler	custom colors	colores personalizados	自定义颜色	カスタムカラー
+key map	tuş haritası	key mapping	asignación de teclas	按键映射	キー割り当て
+— custom mode —	— özel mod —	— custom mode —	— modo personalizado —	— 自定义模式 —	— カスタムモード —
+strip header (04 {0}, {1} blocks)	şerit başlığı (04 {0}, {1} blok)	strip header (04 {0}, {1} blocks)	cabecera de tira (04 {0}, {1} bloques)	灯带头（04 {0}，{1} 个块）	LED ヘッダー（04 {0}、{1} ブロック）
+Esc	Esc	Esc	Esc	Esc	Esc
+Tab	Tab	Tab	Tab	Tab	Tab
+Caps Lock	Büyük harf kilidi	Caps Lock	Bloq Mayús	大写锁定	Caps Lock
+Space	Boşluk	Space	Espacio	空格	スペース
+Enter	Enter	Enter	Intro	回车	Enter
+Backspace	Geri sil	Backspace	Retroceso	退格	Backspace
+Delete	Sil	Delete	Suprimir	删除	Delete
+Insert	Ekle	Insert	Insertar	插入	Insert
+Home	Satır başı	Home	Inicio	行首	Home
+End	Satır sonu	End	Fin	行尾	End
+Page Up	Sayfa yukarı	Page Up	Página arriba	上一页	Page Up
+Page Down	Sayfa aşağı	Page Down	Página abajo	下一页	Page Down
+Left Ctrl	Sol Ctrl	Left Ctrl	Ctrl izquierdo	左 Ctrl	左 Ctrl
+Left Shift	Sol Shift	Left Shift	Mayús izquierdo	左 Shift	左 Shift
+Left Alt/⌥	Sol Alt/⌥	Left Alt/⌥	Alt/⌥ izquierdo	左 Alt/⌥	左 Alt/⌥
+Left Win/⌘	Sol Win/⌘	Left Win/⌘	Win/⌘ izquierdo	左 Win/⌘	左 Win/⌘
+Right Ctrl	Sağ Ctrl	Right Ctrl	Ctrl derecho	右 Ctrl	右 Ctrl
+Right Shift	Sağ Shift	Right Shift	Mayús derecho	右 Shift	右 Shift
+Right Alt/⌥	Sağ Alt/⌥	Right Alt/⌥	Alt/⌥ derecho	右 Alt/⌥	右 Alt/⌥
+Right Win/⌘	Sağ Win/⌘	Right Win/⌘	Win/⌘ derecho	右 Win/⌘	右 Win/⌘
+Print Screen	Ekran görüntüsü	Print Screen	Imprimir pantalla	打印屏幕	Print Screen
+Scroll Lock	Kaydırma kilidi	Scroll Lock	Bloq Despl	滚动锁定	Scroll Lock
+Pause	Duraklat	Pause	Pausa	暂停	Pause
+Play / Pause	Oynat / Duraklat	Play / Pause	Reproducir / Pausar	播放 / 暂停	再生／一時停止
+Next track	Sonraki parça	Next track	Siguiente pista	下一曲	次の曲
+Previous track	Önceki parça	Previous track	Pista anterior	上一曲	前の曲
+Stop	Durdur	Stop	Detener	停止	停止
+Volume up	Sesi artır	Volume up	Subir volumen	增大音量	音量を上げる
+Volume down	Sesi azalt	Volume down	Bajar volumen	减小音量	音量を下げる
+Mute	Sessiz	Mute	Silenciar	静音	消音
+Left click	Sol tıklama	Left click	Clic izquierdo	左键单击	左クリック
+Right click	Sağ tıklama	Right click	Clic derecho	右键单击	右クリック
+Middle click	Orta tıklama	Middle click	Clic central	中键单击	中央クリック
+Back	Geri	Back	Atrás	后退	戻る
+Forward	İleri	Forward	Adelante	前进	進む
+Scroll up	Yukarı kaydır	Scroll up	Desplazar arriba	向上滚动	上にスクロール
+Scroll down	Aşağı kaydır	Scroll down	Desplazar abajo	向下滚动	下にスクロール
+File	Dosya	File	Archivo	文件	ファイル
+Edit	Düzen	Edit	Edición	编辑	編集
+View	Görünüm	View	Vista	显示	表示
+Window	Pencere	Window	Ventana	窗口	ウインドウ
+Help	Yardım	Help	Ayuda	帮助	ヘルプ
+About AMG65 Studio	AMG65 Studio hakkında	About AMG65 Studio	Acerca de AMG65 Studio	关于 AMG65 Studio	AMG65 Studio について
+Hide AMG65 Studio	AMG65 Studio’yu gizle	Hide AMG65 Studio	Ocultar AMG65 Studio	隐藏 AMG65 Studio	AMG65 Studio を非表示
+Hide Others	Diğerlerini gizle	Hide Others	Ocultar otras	隐藏其他	ほかを非表示
+Show All	Tümünü göster	Show All	Mostrar todo	全部显示	すべて表示
+Quit AMG65 Studio	AMG65 Studio’dan çık	Quit AMG65 Studio	Salir de AMG65 Studio	退出 AMG65 Studio	AMG65 Studio を終了
+Services	Servisler	Services	Servicios	服务	サービス
+Close Window	Pencereyi kapat	Close Window	Cerrar ventana	关闭窗口	ウインドウを閉じる
+Undo	Geri al	Undo	Deshacer	撤销	取り消す
+Redo	Yinele	Redo	Rehacer	重做	やり直す
+Cut	Kes	Cut	Cortar	剪切	カット
+Copy	Kopyala	Copy	Copiar	拷贝	コピー
+Paste	Yapıştır	Paste	Pegar	粘贴	ペースト
+Paste and Match Style	Yapıştır ve stili eşleştir	Paste and Match Style	Pegar con el mismo estilo	粘贴并匹配样式	ペーストしてスタイルを合わせる
+Select All	Tümünü seç	Select All	Seleccionar todo	全选	すべてを選択
+Minimize	Simge durumuna küçült	Minimize	Minimizar	最小化	しまう
+Zoom	Yakınlaştır	Zoom	Ampliar	缩放	拡大／縮小
+Bring All to Front	Tümünü öne getir	Bring All to Front	Traer todo al frente	全部前置	すべてを手前に移動
+Enter Full Screen	Tam ekrana geç	Enter Full Screen	Entrar en pantalla completa	进入全屏幕	フルスクリーンにする
+Exit Full Screen	Tam ekrandan çık	Exit Full Screen	Salir de pantalla completa	退出全屏幕	フルスクリーンを解除
+5h	5 saat	5h	5 h	5 小时	5 時間
+7d	7 gün	7d	7 días	7 天	7 日
+24h	24 saat	24h	24 h	24 小时	24 時間
+Primary	Birincil	Primary	Principal	主要	プライマリ
+Secondary	İkincil	Secondary	Secundaria	次要	セカンダリ
+Other	Diğer	Other	Otra	其他	その他
+Session	Oturum	Session	Sesión	会话	セッション
+Weekly	Haftalık	Weekly	Semanal	每周	週間
+Monthly	Aylık	Monthly	Mensual	每月	月間
+Team pool	Takım havuzu	Team pool	Fondo del equipo	团队共享额度	チーム共有枠

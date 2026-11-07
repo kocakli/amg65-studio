@@ -131,6 +131,16 @@ enum KeyAction: Codable, Hashable {
         }
     }
 
+    var localizedTitle:String {
+        switch self {
+        case let .key(mods,code):
+            let name=L(HIDKeys.name(code))
+            let symbols=Modifier.allCases.filter { mods & $0.bit != 0 }.map(\.symbol).joined()
+            return symbols.isEmpty ? name:"\(symbols) \(name)"
+        default:return L(title)
+        }
+    }
+
     var tested: Bool { if case .key = self { true } else { false } }
 }
 

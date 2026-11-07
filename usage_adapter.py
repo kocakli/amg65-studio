@@ -1,29 +1,31 @@
-"""Read CodexBar quotas without handling provider credentials.
+"""Independent, nonblocking quota polling through Studio's bundled native helper.
 
-The normal path only reads CodexBar's opt-in, identity-free CLI usage cache.
-An explicit ``snapshot(refresh=True)`` uses the installed signed CLI. No settings
-or CodexBar files are written. Unknown quota is always None, never zero.
+Only normalized measurements and opaque account fingerprints are cached. Provider
+credentials remain in their original app/CLI stores and never reach this module.
 """
 
 from __future__ import annotations
 
 import argparse
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import json
 import math
 import os
 from pathlib import Path
 import signal
+import tempfile
+import threading
+import time
+import copy
+import re
 import stat
 import subprocess
 from typing import Any
 
 PROVIDERS = ("claude", "cursor", "codex")
 LABELS = {"claude": "Claude", "cursor": "Cursor", "codex": "Codex"}
-DEFAULT_CLI = Path("/Applications/CodexBar.app/Contents/Helpers/CodexBarCLI")
-DEFAULT_CACHE = Path.home() / "Library/Application Support/CodexBar/CLIUsageCache/usage.json"
-DEFAULT_HISTORY = Path.home() / "Library/Application Support/com.steipete.codexbar/history"
+DEFAULT_HELPER = Path(__file__).resolve().parent / "bin/amg65-usage"
+DEFAULT_CACHE = Path.home() / "Library/Application Support/AMG65 Studio/state/usage.json"
 MAX_FILE_BYTES = 8 * 1024 * 1024
 
 
@@ -94,7 +96,7 @@ def _unavailable(provider: str, error: str, source: str) -> dict:
 
 
 def normalize_usage(provider: str, payload: dict, *, now: datetime | None = None,
-                    max_age: float = 900, source: str = "codexbar-cli") -> dict:
+                    max_age: float = 900, source: str = "studio-direct") -> dict:
     """Normalize one CLI/cache entry; retain window identity and measured time.
 
     ``remaining_percent`` is the first available primary/secondary window,
@@ -151,134 +153,189 @@ def normalize_usage(provider: str, payload: dict, *, now: datetime | None = None
     return result
 
 
-class UsageAdapter:
-    """Identity-free local cache adapter, with explicit optional CLI refresh."""
+ERROR_CODES = frozenset(('auth_required','relogin_required','keychain_locked','network_error',
+                         'rate_limited','invalid_response','unavailable','timeout','helper_unavailable','fetch_failed','no_usage','access_denied','credentials_unreadable','invalid_credentials'))
+RETAINABLE_ERRORS = frozenset(('network_error','rate_limited','timeout'))
 
-    def __init__(self, cache_path: Path | str = DEFAULT_CACHE,
-                 cli_path: Path | str = DEFAULT_CLI,
-                 history_dir: Path | str | None = DEFAULT_HISTORY,
-                 max_age: float = 900, timeout: float = 25):
-        if not math.isfinite(max_age) or max_age <= 0 or not math.isfinite(timeout) or timeout <= 0:
-            raise ValueError("max_age and timeout must be positive finite numbers")
-        self.cache_path = Path(cache_path)
-        self.cli_path = Path(cli_path)
-        self.history_dir = Path(history_dir) if history_dir is not None else None
-        self.max_age = max_age
-        self.timeout = timeout
 
-    def _history(self, provider: str, now: datetime) -> dict | None:
-        """Best-effort history fallback; requires CodexBar's preferred account.
+def _error_code(row):
+    error = row.get('error') if isinstance(row, dict) else None
+    code = error.get('code') if isinstance(error, dict) else error
+    return code if isinstance(code,str) and code in ERROR_CODES else ('fetch_failed' if error else None)
 
-        Histories are change-point records, so an unchanged value can have an
-        old capture time. Never substitute file mtime or call it freshly read.
-        """
-        if not self.history_dir or provider == "cursor":
-            return None
-        document = _read_json(self.history_dir / f"{provider}.json")
-        if not isinstance(document, dict):
-            return None
-        accounts = document.get("accounts")
-        key = document.get("preferredAccountKey")
-        if not isinstance(accounts, dict) or not isinstance(key, str):
-            return None
-        stored_windows = accounts.get(key)
-        if not isinstance(stored_windows, list):
-            return None
-        windows = []
-        for stored in stored_windows:
-            if not isinstance(stored, dict) or stored.get("name") not in ("session", "weekly"):
-                continue
-            entries = stored.get("entries")
-            if not isinstance(entries, list):
-                continue
-            dated = [(date, e) for e in entries if isinstance(e, dict)
-                     if (date := _date(e.get("capturedAt"))) is not None]
-            if not dated:
-                continue
-            captured, entry = max(dated, key=lambda row: row[0])
-            slot = "primary" if stored["name"] == "session" else "secondary"
-            normalized = normalize_usage(provider, {"usage": {
-                "updatedAt": _iso(captured), slot: {
-                    "usedPercent": entry.get("usedPercent"), "resetsAt": entry.get("resetsAt"),
-                    "windowMinutes": stored.get("windowMinutes")}}},
-                now=now, max_age=self.max_age, source="codexbar-history")
-            windows.extend(normalized["windows"])
-        windows.sort(key=lambda w: (w["stale"], w["id"] != "primary"))
-        selected = next((w for w in windows if w["remaining_percent"] is not None), None)
-        if not selected:
-            return None
-        result = _unavailable(provider, "history_only", "codexbar-history")
-        result.update(windows=windows, remaining_percent=selected["remaining_percent"],
-                      remaining_label=selected["label"], updated_at=selected["updated_at"], stale=True)
-        # A change-point history is not evidence that the current app fetch
-        # succeeded, even when its most recent entry is within max_age.
-        for win in result["windows"]:
-            win["stale"] = True
-        return result
 
-    def _fetch(self, provider: str, now: datetime) -> dict:
-        command = [str(self.cli_path), "usage", "--provider", provider, "--format", "json",
-                   "--json-only", "--no-credits", "--web-timeout", str(max(1, int(self.timeout - 5))) ]
-        try:
-            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                                       text=True, start_new_session=True)
-            try:
-                output, _ = process.communicate(timeout=self.timeout)
-            except subprocess.TimeoutExpired:
-                os.killpg(process.pid, signal.SIGKILL)
-                process.communicate()
-                return _unavailable(provider, "timeout", "codexbar-cli")
-            if len(output) > MAX_FILE_BYTES:
-                return _unavailable(provider, "invalid_response", "codexbar-cli")
-            payload = json.loads(output)
-            rows = payload if isinstance(payload, list) else [payload]
-            row = next((r for r in rows if isinstance(r, dict) and r.get("provider") == provider), {})
-            return normalize_usage(provider, row, now=now, max_age=self.max_age)
-        except (OSError, ValueError, UnicodeDecodeError):
-            return _unavailable(provider, "cli_unavailable", "codexbar-cli")
-
-    def snapshot(self, refresh: bool = False, *, now: datetime | None = None) -> dict:
-        """Return only quota figures. ``refresh=False`` makes no network calls."""
-        now = now or datetime.now(timezone.utc)
-        document = _read_json(self.cache_path, private=True)
-        entries = document.get("entries", []) if isinstance(document, dict) else []
-        if not isinstance(entries, list):
-            entries = []
-        providers = {}
-        for provider in PROVIDERS:
-            row = next((r for r in entries if isinstance(r, dict) and r.get("provider") == provider), None)
-            if row is not None:
-                providers[provider] = normalize_usage(provider, row, now=now,
-                                                       max_age=self.max_age, source="codexbar-cache")
+def _safe_entry(provider, row, now):
+    """Whitelist helper output before persistence; discard identities and secrets."""
+    row = row if isinstance(row, dict) else {}
+    normalized = normalize_usage(provider, row, now=now)
+    result = {'provider':provider}
+    fingerprint = row.get('accountFingerprint')
+    if isinstance(fingerprint,str) and re.fullmatch(r'[a-f0-9]{64}',fingerprint):
+        result['accountFingerprint']=fingerprint
+    if isinstance(row.get('usage'),dict):
+        usage={'updatedAt':normalized['updated_at']}
+        extras=[]
+        labels={}
+        for window in normalized['windows']:
+            value=window['remaining_percent']
+            item={'usedPercent':None if value is None else 100-value,'resetsAt':window['resets_at']}
+            slot=window['id']
+            if slot.startswith('extra:'):
+                extras.append({'id':slot[6:64],'title':window['label'],'window':item,'usageKnown':value is not None})
             else:
-                providers[provider] = (self._history(provider, now) or
-                                       _unavailable(provider, "cache_unavailable", "codexbar-cache"))
-        if refresh:
-            with ThreadPoolExecutor(max_workers=len(PROVIDERS)) as pool:
-                fresh = list(pool.map(lambda provider: self._fetch(provider, now), PROVIDERS))
-            for row in fresh:
-                previous = providers[row["id"]]
-                if row["remaining_percent"] is not None or previous["remaining_percent"] is None:
-                    providers[row["id"]] = row
-                else:
-                    previous["error"] = row["error"]
-                    previous["stale"] = True
-                    for win in previous["windows"]:
-                        win["stale"] = True
-        return {"generated_at": _iso(now), "providers": [providers[p] for p in PROVIDERS]}
+                usage[slot]=item
+                labels[slot]=window['label']
+        if extras: usage['extraRateWindows']=extras[:12]
+        if row['usage'].get('dataConfidence') == 'lastknown': usage['dataConfidence']='lastknown'
+        result.update(usage=usage,rateWindowLabels=labels)
+    code=_error_code(row)
+    if code: result['error']={'code':code}
+    return result
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--refresh", action="store_true", help="Fetch via installed CodexBar CLI")
-    parser.add_argument("--cache", type=Path, default=DEFAULT_CACHE)
-    parser.add_argument("--max-age", type=float, default=900)
-    parser.add_argument("--no-history", action="store_true", help="Disable stale history fallback")
-    args = parser.parse_args()
-    adapter = UsageAdapter(cache_path=args.cache, max_age=args.max_age,
-                           history_dir=None if args.no_history else DEFAULT_HISTORY)
-    print(json.dumps(adapter.snapshot(refresh=args.refresh), indent=2, ensure_ascii=False))
+class UsageAdapter:
+    """Refresh every five minutes on one daemon thread; USB never waits on HTTPS."""
+
+    def __init__(self, cache_path=DEFAULT_CACHE, helper_path=DEFAULT_HELPER,
+                 max_age=900, timeout=25, refresh_interval=300, autostart=True):
+        for value in (max_age,timeout,refresh_interval):
+            if isinstance(value,bool) or not isinstance(value,(int,float)) or not math.isfinite(value) or value <= 0:
+                raise ValueError('Timing values must be positive finite numbers')
+        self.cache_path=Path(cache_path)
+        self.helper_path=Path(helper_path)
+        self.max_age=max_age; self.timeout=timeout; self.refresh_interval=refresh_interval
+        self.autostart=autostart
+        self._lock=threading.RLock()
+        self._thread=None; self._process=None; self._closed=False
+        self._next_refresh=0.0; self._last_attempt=None
+        document=_read_json(self.cache_path,private=True)
+        entries=document.get('entries',[]) if isinstance(document,dict) else []
+        now=datetime.now(timezone.utc)
+        self._entries={}
+        if isinstance(entries,list):
+            for row in entries[:len(PROVIDERS)]:
+                if isinstance(row,dict) and row.get('provider') in PROVIDERS:
+                    provider=row['provider']
+                    self._entries[provider]=_safe_entry(provider,row,now)
+
+    @property
+    def refreshing(self):
+        return self._thread is not None and self._thread.is_alive()
+
+    def request_refresh(self, force=False):
+        with self._lock:
+            now=time.monotonic()
+            if self._closed or self.refreshing or (not force and now < self._next_refresh):
+                return False
+            # Coalesce repeated clicks and bound retries even when authentication fails.
+            if force and self._next_refresh-now > self.refresh_interval-10:
+                return False
+            self._next_refresh=now+self.refresh_interval
+            self._last_attempt=_iso(datetime.now(timezone.utc))
+            self._thread=threading.Thread(target=self._refresh,name='Studio quota refresh',daemon=True)
+            self._thread.start()
+            return True
+
+    def _fetch_all(self):
+        """The helper handles credentials internally and emits quota data only."""
+        with tempfile.TemporaryFile() as output:
+            try:
+                process=subprocess.Popen([str(self.helper_path),'--provider','all'],stdout=output,
+                    stderr=subprocess.DEVNULL,start_new_session=True)
+                with self._lock:
+                    self._process=process
+                    closed=self._closed
+                if closed:
+                    process.terminate()
+                try:
+                    process.wait(timeout=self.timeout)
+                except subprocess.TimeoutExpired:
+                    os.killpg(process.pid,signal.SIGKILL)
+                    process.wait()
+                    return [{'provider':p,'error':{'code':'timeout'}} for p in PROVIDERS]
+                if os.fstat(output.fileno()).st_size > MAX_FILE_BYTES:
+                    raise ValueError('Bounded helper response exceeded')
+                output.seek(0)
+                data=json.load(output)
+                if not isinstance(data,list): raise ValueError('Expected provider array')
+                return data[:len(PROVIDERS)]
+            except (OSError,ValueError,UnicodeDecodeError):
+                return [{'provider':p,'error':{'code':'helper_unavailable'}} for p in PROVIDERS]
+            finally:
+                with self._lock: self._process=None
+
+    def _refresh(self):
+        rows=self._fetch_all()
+        self._merge(rows,datetime.now(timezone.utc))
+
+    def _merge(self,rows,now):
+        with self._lock:
+            for provider in PROVIDERS:
+                raw=next((r for r in rows if isinstance(r,dict) and r.get('provider')==provider),{})
+                row=_safe_entry(provider,raw,now)
+                old=self._entries.get(provider,{})
+                fingerprint=row.get('accountFingerprint')
+                if (_error_code(row) in RETAINABLE_ERRORS and fingerprint and
+                    fingerprint == old.get('accountFingerprint') and isinstance(old.get('usage'),dict)):
+                    row=copy.deepcopy(old)
+                    row['usage']['dataConfidence']='lastknown'
+                    row['error']={'code':_error_code(raw)}
+                self._entries[provider]=row
+            if not self._closed:
+                self._persist()
+
+    def _persist(self):
+        # The containing service directory is private. Replace, never follow, a cache symlink.
+        try:
+            self.cache_path.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
+            fd,path=tempfile.mkstemp(prefix='.usage-',dir=self.cache_path.parent)
+            try:
+                with os.fdopen(fd,'w') as stream:
+                    json.dump({'version':1,'entries':list(self._entries.values())},stream)
+                    stream.flush(); os.fsync(stream.fileno())
+                os.replace(path,self.cache_path)
+            finally:
+                try: os.unlink(path)
+                except FileNotFoundError: pass
+        except OSError:
+            # In-memory readings remain usable when the cache cannot be saved.
+            pass
+
+    def snapshot(self, refresh=False, *, now=None):
+        now=now or datetime.now(timezone.utc)
+        if refresh or self.autostart: self.request_refresh(force=refresh)
+        with self._lock:
+            providers=[]
+            for provider in PROVIDERS:
+                row=self._entries.get(provider,{})
+                result=normalize_usage(provider,row,now=now,max_age=self.max_age)
+                code=_error_code(row)
+                if code: result['error']=code
+                providers.append(result)
+            return {'generated_at':_iso(now),'providers':providers,
+                    'usage_refresh':{'running':self.refreshing,'last_attempt':self._last_attempt,
+                                     'interval_seconds':self.refresh_interval}}
+
+    def close(self):
+        with self._lock:
+            self._closed=True
+            process=self._process
+        if process is not None and process.poll() is None:
+            try: process.terminate()
+            except ProcessLookupError: pass
 
 
-if __name__ == "__main__":
-    main()
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--refresh',action='store_true',help='Fetch directly using Studio’s own helper')
+    parser.add_argument('--cache',type=Path,default=DEFAULT_CACHE)
+    args=parser.parse_args()
+    adapter=UsageAdapter(cache_path=args.cache,autostart=False)
+    if args.refresh:
+        adapter.request_refresh(force=True)
+        adapter._thread.join(adapter.timeout+2)
+    print(json.dumps(adapter.snapshot(),indent=2,ensure_ascii=False))
+    adapter.close()
+
+
+if __name__ == '__main__': main()

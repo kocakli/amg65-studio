@@ -179,6 +179,7 @@ final class StripModel: ObservableObject {
 
     func chooseFile() {
         let panel = NSOpenPanel()
+        panel.title = L("Görsel seç…"); panel.prompt = L("Seç")
         panel.allowedContentTypes = [.gif, .png, .jpeg, .image]
         if panel.runModal() == .OK, let url = panel.url { load(url) }
     }

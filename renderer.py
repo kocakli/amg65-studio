@@ -152,3 +152,62 @@ def render_text(text: str, hex_color: str, brightness: float, elapsed: float=0) 
     _text(pixels,text,x,rgb)
     _text(pixels,'*',58,rgb,63)
     return pixels
+
+ACTIVITY_LABELS = {'running':'RUN','queued':'QUEUE','waiting_approval':'ASK',
+                   'waiting_input':'INPUT','completed':'DONE','error':'ERROR'}
+ACTIVITY_PRIORITY = {'waiting_approval':5,'waiting_input':5,'error':4,'running':3,'queued':2,'completed':1}
+
+
+def select_activity(activity, elapsed=0, now=None):
+    """Prefer genuine attention events; rotate equally urgent providers fairly."""
+    import time
+    now=time.time() if now is None else now
+    if not isinstance(activity,dict): return None
+    rows=activity.get('providers',[])
+    candidates=[]
+    for row in rows if isinstance(rows,list) else []:
+        if not isinstance(row,dict) or row.get('provider') not in COLORS or row.get('state') not in ACTIVITY_LABELS:
+            continue
+        expires=row.get('expires_at')
+        if isinstance(expires,bool) or not isinstance(expires,(int,float)) or not math.isfinite(expires) or expires <= now:
+            continue
+        if row.get('stale'): continue
+        candidates.append(row)
+    if not candidates: return None
+    priority=max(ACTIVITY_PRIORITY[row['state']] for row in candidates)
+    rows=[row for row in candidates if ACTIVITY_PRIORITY[row['state']]==priority]
+    # Working states leave four seconds in each ten-second cycle for allowances.
+    if priority in (2,3) and int(max(0,elapsed))%10 >= 6: return None
+    return rows[int(max(0,elapsed)//4)%len(rows)]
+
+
+def render_activity(activity, snapshot, brightness=0.4, elapsed=0):
+    """Provider-coloured state text plus an attention/motion glyph and quota rails.
+
+    No prompt, command or filename is placed on the physical display. ASCII state
+    codes remain legible in the device's five rows, regardless of UI language.
+    """
+    brightness=_brightness(brightness)
+    pixels=[BLACK]*(WIDTH*HEIGHT)
+    provider=activity.get('provider')
+    state=activity.get('state')
+    if provider not in COLORS or state not in ACTIVITY_LABELS: return pixels
+    color=tuple(round(min(254,v)*brightness) for v in COLORS[provider])
+    label={'codex':'CODEX','claude':'CLAUDE','cursor':'CURSOR'}[provider]
+    _text(pixels,label,0,color,56)
+    _text(pixels,ACTIVITY_LABELS[state],28,color,56)
+    # A quiet two-frame indicator conveys motion without flashing the whole strip.
+    if state in ('running','queued'):
+        y=int(max(0,elapsed)*2)%5
+        pixels[y*WIDTH+54]=color
+    elif state in ('waiting_approval','waiting_input'):
+        glyph='!' if state=='waiting_approval' else '?'
+        accent=tuple(round(v*brightness*(0.6 if int(elapsed*2)%2 else 1)) for v in (245,177,106))
+        _text(pixels,glyph,52,accent,56)
+    elif state=='completed':
+        for x,y in ((51,2),(52,3),(53,2),(54,1)): pixels[y*WIDTH+x]=color
+    elif state=='error':
+        _text(pixels,'!',54,tuple(round(v*brightness) for v in (250,100,105)),56)
+    entries={row.get('id'):row for row in snapshot.get('providers',[]) if isinstance(row,dict)}
+    _bars(pixels,[entries.get(p,{'id':p}) for p,_ in PROVIDERS],brightness)
+    return pixels
