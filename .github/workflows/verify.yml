@@ -1,0 +1,28 @@
+name: Verify
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Python behavior and local HTTP boundaries
+        run: python3 -m unittest discover -s tests -v
+      - name: Install native build dependency
+        run: brew install libusb
+      - name: Native protocol and media regression checks
+        run: python3 NativeApp/Tests/run_checks.py
+      - name: Build helper and signed local app
+        run: ./build.sh
+      - name: Verify app signature
+        run: codesign --verify --deep --strict 'NativeApp/build/AMG65 Studio.app'
