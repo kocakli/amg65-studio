@@ -44,7 +44,7 @@ private enum UsageTab:String,CaseIterable,Identifiable {
     var tint:Color {
         switch self { case .overview:return .primary
         case .codex:return Color(red:0.39,green:0.57,blue:0.45)
-        case .claude:return Color(red:217.0/255,green:119.0/255,blue:87.0/255)
+        case .claude:return Color(red:1,green:122.0/255,blue:47.0/255)
         case .cursor:return Color(red:0.49,green:0.51,blue:0.70) }
     }
 }
@@ -646,8 +646,8 @@ private struct MenuDisplayControls:View {
             Text(L("Desteklenen olaylarda çalışma, onay ve bilgi bekleme durumları kullanımın yanında gösterilir."))
                 .font(.system(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
             VStack(alignment:.leading,spacing:7) {
-                Toggle(L("Claude maskotu"),isOn:$model.draft.claudeMascot)
-                Text(L("Claude çalışırken yürür; onay veya bilgi beklerken durur."))
+                Toggle(L("Araç maskotları"),isOn:$model.draft.mascotEnabled)
+                Text(L("Claude yengeci, Codex robotu ve Cursor imleci; seçilen araçta veya Otomatik'te gözlenen duruma göre hareket eder."))
                     .font(.system(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
             }
             HStack {

@@ -203,7 +203,7 @@ import Darwin
         let initialSettings=MenuDisplaySettings()
         let legacySettings=try JSONDecoder().decode(MenuDisplaySettings.self,from:Data(##"{"display_mode":"text","brightness":0.4,"text":"DRAFT","text_color":"#ffffff","activity_enabled":true}"##.utf8))
         check(legacySettings.textEffect=="none" && legacySettings.text=="DRAFT" && legacySettings.valid,"legacy bridge settings default missing text effect to none")
-        check(!legacySettings.claudeMascot && !initialSettings.claudeMascot,"mascot defaults off for new and legacy settings")
+        check(!legacySettings.mascotEnabled && !initialSettings.mascotEnabled,"mascot defaults off for new and legacy settings")
         check(legacySettings.trackedProvider=="all" && initialSettings.trackedProvider=="all","provider focus defaults to automatic for new and legacy settings")
         for provider in ["all","claude","codex","cursor"] {
             var settings=initialSettings;settings.trackedProvider=provider
@@ -219,18 +219,41 @@ import Darwin
             check(rejected,"provider focus rejects nonstring JSON value")
         }
         for enabled in [false,true] {
-            var settings=initialSettings;settings.claudeMascot=enabled
+            var settings=initialSettings;settings.mascotEnabled=enabled
             let encoded=try JSONEncoder().encode(settings)
             let decoded=try JSONDecoder().decode(MenuDisplaySettings.self,from:encoded)
             check(decoded==settings && decoded.valid,"mascot boolean round trip: \(enabled)")
+            let object=(try JSONSerialization.jsonObject(with:encoded)) as! [String:Any]
+            check(object["mascot_enabled"] as? Bool==enabled && object["claude_mascot"]==nil,"mascot encoding emits only the new generic key")
         }
-        var malformedMascot=(try JSONSerialization.jsonObject(with:JSONEncoder().encode(initialSettings))) as! [String:Any]
+        var legacyMascot=(try JSONSerialization.jsonObject(with:JSONEncoder().encode(initialSettings))) as! [String:Any]
+        legacyMascot.removeValue(forKey:"mascot_enabled")
+        for enabled in [false,true] {
+            legacyMascot["claude_mascot"]=enabled
+            let migrated=try JSONDecoder().decode(MenuDisplaySettings.self,from:JSONSerialization.data(withJSONObject:legacyMascot))
+            check(migrated.mascotEnabled==enabled,"legacy Claude mascot preference migrates")
+            var both=legacyMascot;both["mascot_enabled"] = !enabled
+            let preferred=try JSONDecoder().decode(MenuDisplaySettings.self,from:JSONSerialization.data(withJSONObject:both))
+            check(preferred.mascotEnabled == !enabled,"generic mascot preference takes precedence over legacy")
+        }
         for value:Any in ["true",1,NSNull()] {
-            malformedMascot["claude_mascot"]=value
+            legacyMascot["claude_mascot"]=value
+            var rejected=false
+            do { _ = try JSONDecoder().decode(MenuDisplaySettings.self,from:JSONSerialization.data(withJSONObject:legacyMascot)) }
+            catch { rejected=true }
+            check(rejected,"legacy mascot fallback rejects nonboolean JSON value")
+        }
+        legacyMascot["mascot_enabled"]=true
+        let preferredMascot=try JSONDecoder().decode(MenuDisplaySettings.self,from:JSONSerialization.data(withJSONObject:legacyMascot))
+        check(preferredMascot.mascotEnabled,"valid generic mascot ignores an invalid legacy alias")
+        var malformedMascot=(try JSONSerialization.jsonObject(with:JSONEncoder().encode(initialSettings))) as! [String:Any]
+        malformedMascot["claude_mascot"]=true
+        for value:Any in ["true",1,NSNull()] {
+            malformedMascot["mascot_enabled"]=value
             var rejected=false
             do { _ = try JSONDecoder().decode(MenuDisplaySettings.self,from:JSONSerialization.data(withJSONObject:malformedMascot)) }
             catch { rejected=true }
-            check(rejected,"mascot rejects nonboolean JSON value")
+            check(rejected,"generic mascot rejects nonboolean JSON value instead of falling back")
         }
         for effect in ["none","scan","breathe","matrix","scroll"] {
             var settings=initialSettings;settings.textEffect=effect
@@ -259,15 +282,15 @@ import Darwin
         ack.text="LAST";display.receive(displaySnapshot(ack))
         check(display.draft.text=="LAST" && !display.dirty,"unchanged sent draft canonicalizes on acknowledgement")
         let beforeMascot=settingsRequests
-        display.draft.text="mascot draft";display.draft.claudeMascot=true
+        display.draft.text="mascot draft";display.draft.mascotEnabled=true
         display.receive(displaySnapshot(ack))
-        check(display.draft.text=="mascot draft" && display.draft.claudeMascot && display.dirty && settingsRequests==beforeMascot,"mascot selection remains a local draft through polling")
+        check(display.draft.text=="mascot draft" && display.draft.mascotEnabled && display.dirty && settingsRequests==beforeMascot,"mascot selection remains a local draft through polling")
         await display.save()
-        check(sentSettings["claude_mascot"] as? Bool==true && sentSettings["text"] as? String=="MASCOT DRAFT","Apply submits mascot with preserved text draft")
-        var mascotAck=ack;mascotAck.text="MASCOT DRAFT";mascotAck.claudeMascot=true
-        display.draft.claudeMascot=false;display.draft.text="new mascot draft"
+        check(sentSettings["mascot_enabled"] as? Bool==true && sentSettings["claude_mascot"]==nil && sentSettings["text"] as? String=="MASCOT DRAFT","Apply submits generic mascot with preserved text draft")
+        var mascotAck=ack;mascotAck.text="MASCOT DRAFT";mascotAck.mascotEnabled=true
+        display.draft.mascotEnabled=false;display.draft.text="new mascot draft"
         display.receive(displaySnapshot(mascotAck))
-        check(!display.draft.claudeMascot && display.draft.text=="new mascot draft" && display.dirty,"late mascot acknowledgement preserves newer toggle and text")
+        check(!display.draft.mascotEnabled && display.draft.text=="new mascot draft" && display.dirty,"late mascot acknowledgement preserves newer toggle and text")
         display.discard()
         check(display.draft==mascotAck && !display.dirty,"discard restores acknowledged mascot preference")
         let beforeFocus=settingsRequests

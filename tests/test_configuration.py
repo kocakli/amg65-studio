@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock,patch
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from configuration import settings_patch,lighting_request,LIGHTING
@@ -46,18 +46,40 @@ class ConfigurationTests(unittest.TestCase):
             with patch('app.UsageAdapter'):
                 app=Application(directory,no_device=True)
                 self.assertEqual(app.settings['text_effect'],'none')
-                self.assertFalse(app.settings['claude_mascot'])
-                app.settings.update(settings_patch({'text_effect':'matrix','claude_mascot':True}))
+                self.assertFalse(app.settings['mascot_enabled'])
+                app.settings.update(settings_patch({'text_effect':'matrix','mascot_enabled':True}))
                 app.save_settings()
                 restored=Application(directory,no_device=True)
                 self.assertEqual(restored.settings['text_effect'],'matrix')
-                self.assertTrue(restored.settings['claude_mascot'])
+                self.assertTrue(restored.settings['mascot_enabled'])
                 self.assertEqual(restored.settings['text'],'HELLO')
 
     def test_mascot_preference_accepts_only_explicit_booleans(self):
-        for value in (True,False):self.assertEqual(settings_patch({'claude_mascot':value}),{'claude_mascot':value})
-        for value in (0,1,'true',None,[]):
-            with self.assertRaises(ValueError):settings_patch({'claude_mascot':value})
+        for key in ('mascot_enabled','claude_mascot'):
+            for value in (True,False):
+                self.assertEqual(settings_patch({key:value}),{'mascot_enabled':value})
+            for value in (0,1,'true',None,[]):
+                with self.assertRaises(ValueError):settings_patch({key:value})
+
+    def test_old_mascot_switch_migrates_and_explicit_generic_switch_wins(self):
+        self.assertEqual(settings_patch({'claude_mascot':None,'mascot_enabled':False}),{'mascot_enabled':False})
+        with self.assertRaises(ValueError):settings_patch({'claude_mascot':True,'mascot_enabled':None})
+        for legacy in (False,True):
+            with tempfile.TemporaryDirectory() as directory,patch('app.UsageAdapter'):
+                saved=Path(directory)/'settings.json'
+                saved.write_text(json.dumps({'claude_mascot':legacy,'brightness':.3}))
+                app=Application(directory,no_device=True)
+                self.assertIs(app.settings['mascot_enabled'],legacy)
+                self.assertNotIn('claude_mascot',app.settings)
+                self.assertEqual(app.settings['brightness'],.3)
+                new=not legacy
+                app.settings.update(settings_patch({'claude_mascot':legacy,'mascot_enabled':new}))
+                app.save_settings()
+                persisted=json.loads(saved.read_text())
+                self.assertIs(persisted['mascot_enabled'],new)
+                self.assertNotIn('claude_mascot',persisted)
+                restored=Application(directory,no_device=True)
+                self.assertIs(restored.settings['mascot_enabled'],new)
 
     def test_tracked_provider_is_bounded_and_old_settings_default_to_automatic(self):
         from configuration import DEFAULTS
@@ -88,6 +110,7 @@ class OwnershipTests(unittest.TestCase):
             app.release_to_native(100)
             self.assertEqual(actions,['stop','closed'])
             self.assertIsNone(app.bridge)
+
             self.assertEqual(app.native_until,145)
             self.assertEqual(app.snapshot()['hardware_owner'],'native')
 
@@ -135,6 +158,30 @@ class OwnershipTests(unittest.TestCase):
                 transport.return_value.close.assert_called_once()
             self.assertEqual(app.blocked_identity,654)
             self.assertIsNone(app.bridge)
+
+
+class MascotWorkerTests(unittest.TestCase):
+    def test_live_display_switch_routes_each_selected_product_without_text_effects(self):
+        import time
+        from renderer import render_activity,render_mascot
+        for provider in ('claude','codex','cursor'):
+            for enabled in (False,True):
+                with self.subTest(provider=provider,enabled=enabled),tempfile.TemporaryDirectory() as directory, \
+                     patch('app.UsageAdapter') as adapter,patch('app.ActivityCollector') as collector:
+                    adapter.return_value.snapshot.return_value={'providers':[]}
+                    row={'provider':provider,'state':'running','summary':'reading_files','expires_at':time.time()+60}
+                    collector.return_value.snapshot.return_value={'providers':[row]}
+                    app=Application(directory,no_device=True)
+                    app.settings.update(mascot_enabled=enabled,tracked_provider=provider,
+                                        text_effect='matrix' if enabled else 'none')
+                    app.quit=Mock()
+                    app.quit.is_set.side_effect=[False,True]
+                    app.run()
+                    state=app.snapshot()
+                    expected=(render_mascot if enabled else render_activity)(row,state,.4,0)
+                    self.assertEqual(state['matrix']['pixels'],expected)
+                    self.assertEqual(state['matrix']['activity']['provider'],provider)
+                    self.assertEqual(state['matrix']['view'],'activity')
 
 
 if __name__=='__main__': unittest.main()

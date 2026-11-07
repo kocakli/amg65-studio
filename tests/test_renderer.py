@@ -136,6 +136,8 @@ class LayoutAndPaletteTests(unittest.TestCase):
         red,green,blue=COLORS['claude']
         self.assertGreater(red,green*2)
         self.assertGreater(green,blue*2)
+        # A vivid orange keeps its warm hue while removing the old pale blue mix.
+        self.assertGreaterEqual((max((red,green,blue))-min((red,green,blue)))/red,.97)
 
     def test_percentage_units_have_a_stable_right_edge_as_values_change(self):
         from renderer import BLACK
@@ -281,3 +283,62 @@ class ClaudeMascotTests(unittest.TestCase):
         self.assertEqual(render_claude_mascot({'provider':'claude','state':'unknown'},self.snapshot,1),[BLACK]*315)
         for state in ACTIVITY_LABELS:
             self.assertEqual(render_claude_mascot({'provider':'claude','state':state},self.snapshot,0,1),[BLACK]*315)
+
+
+class ProductMascotTests(unittest.TestCase):
+    def setUp(self):
+        self.snapshot={'providers':[{'id':p,'remaining_percent':v} for p,v in
+                                   (('claude',98),('codex',46),('cursor',54))]}
+
+    def test_each_character_has_a_distinct_silhouette_independent_of_its_color(self):
+        from renderer import MASCOT_SPRITES
+        self.assertEqual(set(MASCOT_SPRITES),{'claude','codex','cursor'})
+        self.assertEqual(len(set(MASCOT_SPRITES.values())),3)
+        for sprite in MASCOT_SPRITES.values():
+            self.assertEqual(len(sprite),5)
+            self.assertTrue(all(len(row)==11 and set(row)<={'0','1'} for row in sprite))
+
+    def test_all_products_walk_both_ways_with_fixed_identity_work_label_and_quota_rails(self):
+        from renderer import render_mascot,BLACK,WORK_LABELS
+        quota=render_overview(self.snapshot,1)
+        for provider in ('claude','codex','cursor'):
+            row={'provider':provider,'state':'running','summary':'reading_files'}
+            frames=[render_mascot(row,self.snapshot,1,step/2) for step in range(12)]
+            self.assertEqual(frames[0],render_mascot(row,self.snapshot,1,6))
+            positions=[min(i%63 for i,pixel in enumerate(frame) if i%63<24 and pixel!=BLACK) for frame in frames]
+            self.assertTrue(any(b>a for a,b in zip(positions,positions[1:])))
+            self.assertTrue(any(b<a for a,b in zip(positions,positions[1:])))
+            for frame in frames:
+                for y in range(5):
+                    self.assertEqual(frame[y*63+26:y*63+53],frames[0][y*63+26:y*63+53])
+                    self.assertEqual(frame[y*63+56:y*63+63],quota[y*63+56:y*63+63])
+            labels=[]
+            for summary in WORK_LABELS:
+                frame=render_mascot(dict(row,summary=summary),self.snapshot,1)
+                labels.append(tuple(pixel for i,pixel in enumerate(frame) if 32<=i%63<53))
+            self.assertEqual(len(set(labels)),len(WORK_LABELS))
+
+    def test_every_pose_is_bounded_preserves_gutters_and_zero_brightness(self):
+        from renderer import render_mascot,ACTIVITY_LABELS,BLACK
+        for provider in ('claude','codex','cursor'):
+            for state in ACTIVITY_LABELS:
+                row={'provider':provider,'state':state}
+                self.assertEqual(render_mascot(row,self.snapshot,0,1),[BLACK]*315)
+                for step in range(12):
+                    frame=render_mascot(row,self.snapshot,1,step/2)
+                    self.assertEqual(len(frame),315)
+                    self.assertTrue(all(type(v) is int and 0<=v<=254 for pixel in frame for v in pixel))
+                    for x in (24,25,29,30,31,53,54,55,56):
+                        self.assertTrue(all(frame[y*63+x]==BLACK for y in range(5)),(provider,state,step,x))
+
+    def test_waits_stop_motion_and_unknown_or_private_data_never_invents_work(self):
+        from renderer import render_mascot,BLACK
+        for provider in ('claude','codex','cursor'):
+            for state in ('queued','waiting_approval','waiting_input','error'):
+                row={'provider':provider,'state':state}
+                self.assertEqual(render_mascot(row,self.snapshot,1,0),render_mascot(row,self.snapshot,1,3.5))
+            self.assertEqual(render_mascot({'provider':provider,'state':'unknown'},self.snapshot,1),[BLACK]*315)
+            row={'provider':provider,'state':'running'}
+            self.assertEqual(render_mascot(dict(row,summary='PRIVATE PATH'),self.snapshot,1),
+                             render_mascot(dict(row,summary='PRIVATE PROMPT'),self.snapshot,1))
+        self.assertEqual(render_mascot({'provider':'other','state':'running'},self.snapshot,1),[BLACK]*315)

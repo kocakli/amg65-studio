@@ -2,7 +2,7 @@
 
 Araştırma tarihi: **7 Kasım 2026**. Kapsam, klavyenin 315 piksellik RGB LED şerididir. Örnek yüzdeler **sentetiktir**; gerçek hesap, sohbet, dosya veya görev bilgisi içermez.
 
-Öneri: varsayılan görünümde üç sağlayıcının kalan kotası aynı anda, sabit konumlarda gösterilsin. Dikkat isteyen gerçek bir olay geldiğinde tam sağlayıcı adı, kısa durum sözcüğü ve ayrıca bir şekil kullanılsın. Claude arayüzde resmi turuncuyla, fiziksel LED’de ayrıca doğrulanacak daha doygun bir turuncu paletle temsil edilsin. Beş satırlık panelde şıklık; az hareket, düzenli boşluk ve tutarlı hizadan gelmeli.
+Öneri: varsayılan görünümde üç sağlayıcının kalan kotası aynı anda, sabit konumlarda gösterilsin. Dikkat isteyen gerçek bir olay geldiğinde tam sağlayıcı adı, kısa durum sözcüğü ve ayrıca bir şekil kullanılsın. Claude arayüzde canlı bir Studio turuncusuyla, fiziksel LED’de ayrıca doğrulanacak daha doygun bir turuncu paletle temsil edilsin. Beş satırlık panelde şıklık; az hareket, düzenli boşluk ve tutarlı hizadan gelmeli.
 
 ## 1. Kanıt ve sınırlar
 
@@ -12,7 +12,7 @@ Araştırma tarihi: **7 Kasım 2026**. Kapsam, klavyenin 315 piksellik RGB LED �
 | Bellekte dört 14 × 5 blok, ardından sağdaki 7 × 5 blok | Upstream `RAW_ORDER`; mantıksal satır sırası doğrudan USB sırası değildir. |
 | Kanal üst sınırı 254; 315 RGB piksel = 945 bayt, protokol çerçevesi 960 bayt | Upstream `MAX_CHANNEL` ve `to_raw_bytes`; mevcut Studio taşıması aynı sınırı korur. |
 | Marka turuncusu `#D97757` | Anthropic’in kendi marka yönergesi; fiziksel AMG65 renk ölçümü değildir. |
-| `(254, 92, 24)` LED turuncusu, ikonlar, sayfa süreleri | Bu çalışma sırasında seçilen **tasarım adayları**. Piksel yerleşimi hesaplanabilir; algılanan renk ve okunabilirlik cihaz üzerinde ayrıca sınanmalıdır. |
+| `(254, 78, 6)` LED turuncusu, ikonlar, sayfa süreleri | Bu çalışma sırasında seçilen **tasarım adayları**. Daha canlı turuncu isteğiyle önceki `(254, 92, 24)` paletinin doygunluğu artırıldı. Piksel yerleşimi hesaplanabilir; algılanan renk ve okunabilirlik cihaz üzerinde ayrıca sınanmalıdır. |
 
 Protokol dayanağı: [aumbro AMG65 projesi](https://github.com/aumbro/leobog_amg65_rgb), incelenen [matrix.py sabit sürümü](https://github.com/aumbro/leobog_amg65_rgb/blob/2bd9ed8e9a2c0f8778562f68449d7869a86476a5/amg65/matrix.py). Bu topluluk tersine mühendislik çalışması, üreticinin yayımladığı bir donanım garantisi değildir. Renk dayanağı: [Anthropic resmi marka yönergesi](https://github.com/anthropics/skills/blob/main/skills/brand-guidelines/SKILL.md).
 
@@ -105,14 +105,14 @@ Adafruit, LED’de kırmızıya yüksek miktarda yeşil eklenince amaçlanan tur
 
 | Kullanım | Değer / yaklaşım | Statü |
 | --- | --- | --- |
-| Claude web/native | `#D97757` | Resmi marka referansı. |
-| Claude fiziksel LED | `(254, 92, 24)` | Daha doygun turuncu adayı; cihaz üzerinde doğrulanmalı. |
+| Claude web/native | `#FF7A2F` | Studio arayüzünün canlı turuncusu; resmi marka referansı `#D97757` değerinden ayrıdır. |
+| Claude fiziksel LED | `(254, 78, 6)` | Daha doygun turuncu adayı; cihaz üzerinde doğrulanmalı. |
 | Codex fiziksel LED | Mevcut mint `(123, 220, 176)` başlangıç adayı | Studio’nun ayırt etme paleti; resmi OpenAI renk standardı iddiası yok. |
 | Cursor fiziksel LED | Mevcut mavi `(134, 190, 248)` başlangıç adayı | Studio paleti; resmi Cursor marka rengi iddiası yok. |
 | ASK/INPUT / ERROR | Amber + `!/?` / kırmızı + çapraz | Renk, sözcük ve şekil birlikte. |
 | Bilinmeyen | Nötr gri + `--` | Sıfır veya başarı görünümüyle karıştırılmaz. |
 
-Ölçüm olmadan bütün renklere sabit bir gamma üssü uygulamayın. Donanım zaten dönüştürüyor olabilir; ikinci dönüşüm düşük seviyeleri aşırı karartabilir. Önce ayrı LED paleti, sonra aynı parlaklık çarpanıyla tutarlı üretim kullanılabilir. Örneğin `(254,92,24)` ve 0,4 çarpanı yuvarlandığında `(102,37,10)` gönderilir. Bu sadece sayısal hesap, algısal renk eşitliği değildir.
+Ölçüm olmadan bütün renklere sabit bir gamma üssü uygulamayın. Donanım zaten dönüştürüyor olabilir; ikinci dönüşüm düşük seviyeleri aşırı karartabilir. Önce ayrı LED paleti, sonra aynı parlaklık çarpanıyla tutarlı üretim kullanılabilir. Örneğin `(254,78,6)` ve 0,4 çarpanı yuvarlandığında `(102,31,2)` gönderilir. Kullanıcının global parlaklık tercihi korunur. Bu sadece sayısal hesap, algısal renk eşitliği değildir.
 
 Karşılaştırma üç sağlayıcının eşit sayısal parlaklıkta eşit parlak göründüğünü varsaymamalıdır. Düşük seviyede kanal yuvarlaması ve difüzör etkisi tonu değiştirebilir. 0,2 / 0,4 / 0,7 gibi birkaç sabit seviye, gündüz ve loş ortamda gözlenmeli; sonunda kullanılan LED paleti ile parlaklık kaydedilmelidir. Bunlar test noktalarıdır, zorunlu kullanıcı ayarları değildir.
 

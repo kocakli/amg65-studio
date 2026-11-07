@@ -19,7 +19,7 @@ import subprocess
 import threading
 import time
 
-from renderer import select_activity, render_activity, render_overview, render_detail, render_text, apply_text_effect, render_claude_mascot
+from renderer import select_activity, render_activity, render_overview, render_detail, render_text, apply_text_effect, render_mascot
 from usage_adapter import UsageAdapter
 from activity import ActivityCollector
 from account_auth import AccountManager
@@ -132,7 +132,7 @@ class Application:
             if not isinstance(saved,dict):
                 raise ValueError('Invalid saved settings')
             self.display = saved.get('enabled', True) is True
-            self.settings.update(settings_patch({k:v for k,v in saved.items() if k in DEFAULTS}))
+            self.settings.update(settings_patch({k:v for k,v in saved.items() if k in DEFAULTS or k=='claude_mascot'}))
             if 'lighting' in saved:
                 self.settings['lighting']=lighting_request(saved['lighting'])
         except (OSError, ValueError):
@@ -345,9 +345,9 @@ class Application:
                 # A slow USB frame must not jump over the falling-letter phases.
                 animation_elapsed=animation_step/2
                 activity=select_activity(snapshot.get('activity'),tick-started,provider=tracked) if self.settings.get('activity_enabled',True) else None
-                mascot=bool(activity and activity.get('provider')=='claude' and self.settings.get('claude_mascot',False))
+                mascot=bool(activity and self.settings.get('mascot_enabled',False))
                 if activity:
-                    pixels=(render_claude_mascot if mascot else render_activity)(activity,snapshot,brightness,animation_elapsed)
+                    pixels=(render_mascot if mascot else render_activity)(activity,snapshot,brightness,animation_elapsed)
                     view='activity'
                     with self.lock: self.state['activity']['selected']=activity
                 elif tracked!='all':

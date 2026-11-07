@@ -9,8 +9,9 @@ import math
 
 WIDTH, HEIGHT = 63, 5
 # LED-specific colours, rather than uncalibrated monitor RGB. Less green makes
-# Claude visibly orange on an emissive strip. This is not a measured colour match.
-COLORS = {"claude": (254, 92, 24), "codex": (123, 220, 176), "cursor": (134, 190, 248)}
+# Claude more saturated on an emissive strip. Lower blue removes the pale cast;
+# user brightness still scales every channel. This is not a measured colour match.
+COLORS = {"claude": (254, 78, 6), "codex": (123, 220, 176), "cursor": (134, 190, 248)}
 PROVIDERS = (("claude", "A"), ("codex", "X"), ("cursor", "C"))
 UNKNOWN = (132, 144, 157)
 BLACK = (0, 0, 0)
@@ -343,47 +344,70 @@ def render_activity(activity, snapshot, brightness=0.4, elapsed=0):
 # eyes survive at this height; richer scenes belong on the TFT, not this strip.
 CLAUDE_SPRITE = ('00111111100','11101110111','00111111100','00111111100','00101010100')
 CLAUDE_WALK_LEGS = ('01010010100','00101001010')
+# Original Studio characters, not official Codex/Cursor brand mascots. Codex's
+# antenna and two feet contrast with Cursor's pointed, single-eyed arrow body.
+CODEX_SPRITE = ('00000100000','00111111100','01101110110','00111111100','00011011000')
+CURSOR_SPRITE = ('00000001000','00111111100','11110111111','00111111100','00000001000')
+MASCOT_SPRITES = {'claude':CLAUDE_SPRITE,'codex':CODEX_SPRITE,'cursor':CURSOR_SPRITE}
+MASCOT_LETTERS = dict(PROVIDERS)
 
 
-def render_claude_mascot(activity, snapshot, brightness=0.4, elapsed=0):
-    """Claude's observed state as a tiny actor, a state word and three quota rails.
+def render_mascot(activity, snapshot, brightness=0.4, elapsed=0):
+    """An observed tool state as its actor, a state word and three quota rails.
 
     RUN takes twelve visual steps to walk out and back. Waiting/error poses are
     stationary; no guessed state, task text or permission decision enters here.
     """
     brightness=_brightness(brightness)
-    if activity.get('provider')!='claude' or activity.get('state') not in ACTIVITY_LABELS:
+    provider=activity.get('provider')
+    if provider not in MASCOT_SPRITES or activity.get('state') not in ACTIVITY_LABELS:
         return render_activity(activity,snapshot,brightness,elapsed)
     pixels=[BLACK]*(WIDTH*HEIGHT)
     state=activity['state']
     step=int(max(0,elapsed)*2)
-    rows=list(CLAUDE_SPRITE)
+    rows=list(MASCOT_SPRITES[provider])
     x=3
     facing=0
-    color=tuple(round(channel*brightness) for channel in COLORS['claude'])
+    color=tuple(round(channel*brightness) for channel in COLORS[provider])
     if state=='running':
         travel=step%12
         x=1+2*(travel if travel<=6 else 12-travel)
         facing=1 if 0<travel<=6 else -1
-        rows[4]=CLAUDE_WALK_LEGS[step%2]
+        if provider=='claude':
+            rows[4]=CLAUDE_WALK_LEGS[step%2]
+        elif provider=='codex':
+            rows[4]=('00011011000','00110001100')[step%2]
+            rows[0]=('00000100000','00000010000')[step%2]
+        elif step%2:
+            rows[2]='11111011111'
     elif state=='completed':
         x=5
-        rows[0]='10111111101' if step%2 else rows[0]
+        if step%2:
+            rows[0]={'claude':'10111111101','codex':'01000100010','cursor':'10000001001'}[provider]
     elif state=='error':
         color=_scale(color,0.55)
-    if facing:
+    if facing and provider=='claude':
         eyes=['1']*11
         for eye in (3+facing,7+facing):eyes[eye]='0'
         rows[1]=''.join(eyes)
+    elif facing==-1 and provider=='cursor':
+        rows=[row[::-1] for row in rows]
     _icon(pixels,rows,x,color)
     if state!='running':
-        accent=ATTENTION if state in ('waiting_approval','waiting_input') else ERROR if state=='error' else COLORS['claude']
+        accent=ATTENTION if state in ('waiting_approval','waiting_input') else ERROR if state=='error' else COLORS[provider]
         _icon(pixels,STATE_ICONS[state],18,tuple(round(v*brightness) for v in accent))
-    # The A mapping remains identical to the overview legend. The longest state,
+    # The A/X/C mapping remains identical to the overview legend. The longest state,
     # INPUT, ends at column 51; the sprite never reaches the label at column 26.
-    _text(pixels,'A',26,tuple(round(v*brightness) for v in COLORS['claude']),29)
-    state_color=tuple(round(v*brightness) for v in ERROR) if state=='error' else tuple(round(v*brightness) for v in COLORS['claude'])
+    _text(pixels,MASCOT_LETTERS[provider],26,tuple(round(v*brightness) for v in COLORS[provider]),29)
+    state_color=tuple(round(v*brightness) for v in ERROR) if state=='error' else tuple(round(v*brightness) for v in COLORS[provider])
     _text(pixels,activity_label(activity),32,state_color,53)
     entries={row.get('id'):row for row in snapshot.get('providers',[]) if isinstance(row,dict)}
     _bars(pixels,[entries.get(p,{'id':p}) for p,_ in PROVIDERS],brightness)
     return pixels
+
+
+def render_claude_mascot(activity, snapshot, brightness=0.4, elapsed=0):
+    """Compatibility entry point for older Claude-only preview integrations."""
+    if activity.get('provider')!='claude':
+        return render_activity(activity,snapshot,brightness,elapsed)
+    return render_mascot(activity,snapshot,brightness,elapsed)

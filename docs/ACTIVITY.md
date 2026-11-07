@@ -82,7 +82,7 @@ For a genuine running event, the LED can replace generic `RUN` with a short labe
 | `compacting` | `CTX` | An observed context-compaction step. |
 | Other supported running summaries | `RUN` | Working, without inventing a more detailed operation. |
 
-These are fixed five-row LED codes, independent of the dashboard language. Approval, input, completion, error, and queue states retain their existing `ASK`, `INPUT`, `DONE`, `ERROR`, and `QUEUE` meanings. The optional Claude mascot follows real Claude state; selecting Claude does not by itself start its walk. Other providers keep their normal text and status icons.
+These are fixed five-row LED codes, independent of the dashboard language. Approval, input, completion, error, and queue states retain their existing `ASK`, `INPUT`, `DONE`, `ERROR`, and `QUEUE` meanings. The optional tool mascots follow the selected provider’s observed state: Studio’s Claude crab, Codex terminal robot, or Cursor pointer. Selecting a provider alone does not start animation. These are original Studio characters, not official provider mascots; disabling the shared mascot setting restores the normal text and status icons.
 
 “Work steps” means the steps the host actually reports through the verified integration. It is not a complete trace of all reasoning, tools, approvals, or background operations. A host that only reports a post-tool event cannot provide the same start-time visibility as one with pre-tool events. Unknown tool names remain generic; unsupported events are ignored, and no operation is inferred from a progress animation. The host-version and pending-approval limitations documented above still apply. Existing TTLs, private-data filtering, and permissions are unchanged.
 

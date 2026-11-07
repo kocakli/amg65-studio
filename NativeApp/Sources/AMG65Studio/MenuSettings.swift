@@ -8,14 +8,15 @@ struct MenuDisplaySettings:Codable,Equatable {
     var textColor="#7bdcb0"
     var textEffect="none"
     var activityEnabled=true
-    var claudeMascot=false
+    var mascotEnabled=false
     var trackedProvider="all"
     enum CodingKeys:String,CodingKey {
         case brightness,text
         case displayMode="display_mode",textColor="text_color",textEffect="text_effect",activityEnabled="activity_enabled"
-        case claudeMascot="claude_mascot"
+        case mascotEnabled="mascot_enabled"
         case trackedProvider="tracked_provider"
     }
+    private enum LegacyCodingKeys:String,CodingKey { case claudeMascot="claude_mascot" }
     init() {}
     init(from decoder:Decoder) throws {
         let values=try decoder.container(keyedBy:CodingKeys.self)
@@ -26,7 +27,12 @@ struct MenuDisplaySettings:Codable,Equatable {
         activityEnabled=try values.decode(Bool.self,forKey:.activityEnabled)
         // Older local bridges did not expose text effects.
         textEffect=try values.decodeIfPresent(String.self,forKey:.textEffect) ?? "none"
-        if values.contains(.claudeMascot) { claudeMascot=try values.decode(Bool.self,forKey:.claudeMascot) }
+        if values.contains(.mascotEnabled) {
+            mascotEnabled=try values.decode(Bool.self,forKey:.mascotEnabled)
+        } else {
+            let legacy=try decoder.container(keyedBy:LegacyCodingKeys.self)
+            if legacy.contains(.claudeMascot) { mascotEnabled=try legacy.decode(Bool.self,forKey:.claudeMascot) }
+        }
         if values.contains(.trackedProvider) { trackedProvider=try values.decode(String.self,forKey:.trackedProvider) }
     }
     var valid:Bool {
