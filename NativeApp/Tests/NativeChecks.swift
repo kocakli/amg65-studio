@@ -203,6 +203,21 @@ import Darwin
         let initialSettings=MenuDisplaySettings()
         let legacySettings=try JSONDecoder().decode(MenuDisplaySettings.self,from:Data(##"{"display_mode":"text","brightness":0.4,"text":"DRAFT","text_color":"#ffffff","activity_enabled":true}"##.utf8))
         check(legacySettings.textEffect=="none" && legacySettings.text=="DRAFT" && legacySettings.valid,"legacy bridge settings default missing text effect to none")
+        check(!legacySettings.claudeMascot && !initialSettings.claudeMascot,"mascot defaults off for new and legacy settings")
+        for enabled in [false,true] {
+            var settings=initialSettings;settings.claudeMascot=enabled
+            let encoded=try JSONEncoder().encode(settings)
+            let decoded=try JSONDecoder().decode(MenuDisplaySettings.self,from:encoded)
+            check(decoded==settings && decoded.valid,"mascot boolean round trip: \(enabled)")
+        }
+        var malformedMascot=(try JSONSerialization.jsonObject(with:JSONEncoder().encode(initialSettings))) as! [String:Any]
+        for value:Any in ["true",1,NSNull()] {
+            malformedMascot["claude_mascot"]=value
+            var rejected=false
+            do { _ = try JSONDecoder().decode(MenuDisplaySettings.self,from:JSONSerialization.data(withJSONObject:malformedMascot)) }
+            catch { rejected=true }
+            check(rejected,"mascot rejects nonboolean JSON value")
+        }
         for effect in ["none","scan","breathe","matrix","scroll"] {
             var settings=initialSettings;settings.textEffect=effect
             let encoded=try JSONEncoder().encode(settings)
@@ -229,6 +244,18 @@ import Darwin
         await display.save()
         ack.text="LAST";display.receive(displaySnapshot(ack))
         check(display.draft.text=="LAST" && !display.dirty,"unchanged sent draft canonicalizes on acknowledgement")
+        let beforeMascot=settingsRequests
+        display.draft.text="mascot draft";display.draft.claudeMascot=true
+        display.receive(displaySnapshot(ack))
+        check(display.draft.text=="mascot draft" && display.draft.claudeMascot && display.dirty && settingsRequests==beforeMascot,"mascot selection remains a local draft through polling")
+        await display.save()
+        check(sentSettings["claude_mascot"] as? Bool==true && sentSettings["text"] as? String=="MASCOT DRAFT","Apply submits mascot with preserved text draft")
+        var mascotAck=ack;mascotAck.text="MASCOT DRAFT";mascotAck.claudeMascot=true
+        display.draft.claudeMascot=false;display.draft.text="new mascot draft"
+        display.receive(displaySnapshot(mascotAck))
+        check(!display.draft.claudeMascot && display.draft.text=="new mascot draft" && display.dirty,"late mascot acknowledgement preserves newer toggle and text")
+        display.discard()
+        check(display.draft==mascotAck && !display.dirty,"discard restores acknowledged mascot preference")
         var invalid=initialSettings;invalid.text="非ASCII"
         check(!invalid.valid,"unsupported LED text rejected before submission")
         invalid=initialSettings;invalid.brightness=Double.nan

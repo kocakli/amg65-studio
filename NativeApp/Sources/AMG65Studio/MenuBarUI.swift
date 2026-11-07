@@ -633,6 +633,11 @@ private struct MenuDisplayControls:View {
             Toggle(L("Çalışma ve bekleme durumlarını göster"),isOn:$model.draft.activityEnabled)
             Text(L("Desteklenen olaylarda çalışma, onay ve bilgi bekleme durumları kullanımın yanında gösterilir."))
                 .font(.system(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+            VStack(alignment:.leading,spacing:7) {
+                Toggle(L("Claude maskotu"),isOn:$model.draft.claudeMascot)
+                Text(L("Claude çalışırken yürür; onay veya bilgi beklerken durur."))
+                    .font(.system(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+            }
             HStack {
                 Button(L("Uygula"),action:apply).buttonStyle(.borderedProminent)
                     .disabled(!model.loaded || !model.dirty || !model.draft.valid || model.saving || offline)

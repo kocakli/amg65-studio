@@ -209,3 +209,51 @@ class TextEffectTests(unittest.TestCase):
         later=text_width(prefix)/2
         self.assertNotEqual(render_text(prefix+'ABC','#7bdcb0',.4,later,marquee=True),
                             render_text(prefix+'XYZ','#7bdcb0',.4,later,marquee=True))
+
+
+class ClaudeMascotTests(unittest.TestCase):
+    def setUp(self):
+        self.snapshot={'providers':[{'id':p,'remaining_percent':v} for p,v in
+                                   (('claude',98),('codex',46),('cursor',54))]}
+
+    def test_walk_changes_position_in_both_directions_and_loops(self):
+        from renderer import render_claude_mascot,BLACK
+        row={'provider':'claude','state':'running'}
+        frames=[render_claude_mascot(row,self.snapshot,1,step/2) for step in range(12)]
+        positions=[min(x for x in range(25) if any(frame[y*63+x]!=BLACK for y in range(5))) for frame in frames]
+        self.assertEqual((min(positions),max(positions)),(1,13))
+        self.assertTrue(any(b>a for a,b in zip(positions,positions[1:])))
+        self.assertTrue(any(b<a for a,b in zip(positions,positions[1:])))
+        self.assertEqual(frames[0],render_claude_mascot(row,self.snapshot,1,6))
+
+    def test_all_poses_keep_quota_gauges_and_clear_gutters(self):
+        from renderer import render_claude_mascot,ACTIVITY_LABELS,BLACK
+        quota=render_overview(self.snapshot,1)
+        for state in ACTIVITY_LABELS:
+            for step in range(12):
+                frame=render_claude_mascot({'provider':'claude','state':state},self.snapshot,1,step/2)
+                self.assertEqual(len(frame),315)
+                self.assertTrue(all(type(channel) is int and 0<=channel<=254 for pixel in frame for channel in pixel))
+                for y in range(5):self.assertEqual(frame[y*63+56:y*63+63],quota[y*63+56:y*63+63])
+                for x in (24,25,29,30,31,53,54,55,56):self.assertTrue(all(frame[y*63+x]==BLACK for y in range(5)))
+
+    def test_waiting_error_and_queue_poses_are_stationary(self):
+        from renderer import render_claude_mascot
+        for state in ('waiting_approval','waiting_input','error','queued'):
+            row={'provider':'claude','state':state}
+            self.assertEqual(render_claude_mascot(row,self.snapshot,1,0),render_claude_mascot(row,self.snapshot,1,3.5))
+
+    def test_other_providers_keep_their_text_and_private_metadata_is_ignored(self):
+        from renderer import render_claude_mascot,render_activity
+        for provider in ('codex','cursor'):
+            row={'provider':provider,'state':'running'}
+            self.assertEqual(render_claude_mascot(row,self.snapshot,1,1),render_activity(row,self.snapshot,1,1))
+        row={'provider':'claude','state':'running'}
+        self.assertEqual(render_claude_mascot(dict(row,summary='PRIVATE PROMPT'),self.snapshot,1,1),
+                         render_claude_mascot(dict(row,summary='OTHER FILE'),self.snapshot,1,1))
+
+    def test_unknown_never_becomes_a_working_mascot_and_brightness_zero_is_black(self):
+        from renderer import render_claude_mascot,ACTIVITY_LABELS,BLACK
+        self.assertEqual(render_claude_mascot({'provider':'claude','state':'unknown'},self.snapshot,1),[BLACK]*315)
+        for state in ACTIVITY_LABELS:
+            self.assertEqual(render_claude_mascot({'provider':'claude','state':state},self.snapshot,0,1),[BLACK]*315)

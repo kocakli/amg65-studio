@@ -324,3 +324,54 @@ def render_activity(activity, snapshot, brightness=0.4, elapsed=0):
     entries={row.get('id'):row for row in snapshot.get('providers',[]) if isinstance(row,dict)}
     _bars(pixels,[entries.get(p,{'id':p}) for p,_ in PROVIDERS],brightness)
     return pixels
+
+
+# Original five-row interpretation of the blocky Claude Code character, not an
+# imported sprite or a reduced high-resolution image. Four legs and two dark
+# eyes survive at this height; richer scenes belong on the TFT, not this strip.
+CLAUDE_SPRITE = ('00111111100','11101110111','00111111100','00111111100','00101010100')
+CLAUDE_WALK_LEGS = ('01010010100','00101001010')
+
+
+def render_claude_mascot(activity, snapshot, brightness=0.4, elapsed=0):
+    """Claude's observed state as a tiny actor, a state word and three quota rails.
+
+    RUN takes twelve visual steps to walk out and back. Waiting/error poses are
+    stationary; no guessed state, task text or permission decision enters here.
+    """
+    brightness=_brightness(brightness)
+    if activity.get('provider')!='claude' or activity.get('state') not in ACTIVITY_LABELS:
+        return render_activity(activity,snapshot,brightness,elapsed)
+    pixels=[BLACK]*(WIDTH*HEIGHT)
+    state=activity['state']
+    step=int(max(0,elapsed)*2)
+    rows=list(CLAUDE_SPRITE)
+    x=3
+    facing=0
+    color=tuple(round(channel*brightness) for channel in COLORS['claude'])
+    if state=='running':
+        travel=step%12
+        x=1+2*(travel if travel<=6 else 12-travel)
+        facing=1 if 0<travel<=6 else -1
+        rows[4]=CLAUDE_WALK_LEGS[step%2]
+    elif state=='completed':
+        x=5
+        rows[0]='10111111101' if step%2 else rows[0]
+    elif state=='error':
+        color=_scale(color,0.55)
+    if facing:
+        eyes=['1']*11
+        for eye in (3+facing,7+facing):eyes[eye]='0'
+        rows[1]=''.join(eyes)
+    _icon(pixels,rows,x,color)
+    if state!='running':
+        accent=ATTENTION if state in ('waiting_approval','waiting_input') else ERROR if state=='error' else COLORS['claude']
+        _icon(pixels,STATE_ICONS[state],18,tuple(round(v*brightness) for v in accent))
+    # The A mapping remains identical to the overview legend. The longest state,
+    # INPUT, ends at column 51; the sprite never reaches the label at column 26.
+    _text(pixels,'A',26,tuple(round(v*brightness) for v in COLORS['claude']),29)
+    state_color=tuple(round(v*brightness) for v in ERROR) if state=='error' else tuple(round(v*brightness) for v in COLORS['claude'])
+    _text(pixels,ACTIVITY_LABELS[state],32,state_color,53)
+    entries={row.get('id'):row for row in snapshot.get('providers',[]) if isinstance(row,dict)}
+    _bars(pixels,[entries.get(p,{'id':p}) for p,_ in PROVIDERS],brightness)
+    return pixels

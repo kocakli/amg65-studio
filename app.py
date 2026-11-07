@@ -19,7 +19,7 @@ import subprocess
 import threading
 import time
 
-from renderer import select_activity, render_activity, render_overview, render_detail, render_text, apply_text_effect
+from renderer import select_activity, render_activity, render_overview, render_detail, render_text, apply_text_effect, render_claude_mascot
 from usage_adapter import UsageAdapter
 from activity import ActivityCollector
 from account_auth import AccountManager
@@ -344,8 +344,9 @@ class Application:
                 # A slow USB frame must not jump over the falling-letter phases.
                 animation_elapsed=animation_step/2
                 activity=select_activity(snapshot.get('activity'),tick-started) if self.settings.get('activity_enabled',True) else None
+                mascot=bool(activity and activity.get('provider')=='claude' and self.settings.get('claude_mascot',False))
                 if activity:
-                    pixels=render_activity(activity,snapshot,brightness,animation_elapsed)
+                    pixels=(render_claude_mascot if mascot else render_activity)(activity,snapshot,brightness,animation_elapsed)
                     view='activity'
                     with self.lock: self.state['activity']['selected']=activity
                 elif mode=='text':
@@ -359,7 +360,7 @@ class Application:
                     provider = snapshot['providers'][(phase - 12) // 4]
                     pixels = render_detail(provider,brightness)
                     view = provider['id']
-                if (not activity or activity['state'] in ('running','queued','completed')) and not (view=='text' and self.settings.get('text_effect')=='scroll'):
+                if not mascot and (not activity or activity['state'] in ('running','queued','completed')) and not (view=='text' and self.settings.get('text_effect')=='scroll'):
                     pixels=apply_text_effect(pixels,self.settings.get('text_effect','none'),brightness,animation_elapsed,
                                              left=7 if activity else 0)
                 with self.lock:

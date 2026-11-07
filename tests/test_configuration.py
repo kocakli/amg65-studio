@@ -46,11 +46,18 @@ class ConfigurationTests(unittest.TestCase):
             with patch('app.UsageAdapter'):
                 app=Application(directory,no_device=True)
                 self.assertEqual(app.settings['text_effect'],'none')
-                app.settings.update(settings_patch({'text_effect':'matrix'}))
+                self.assertFalse(app.settings['claude_mascot'])
+                app.settings.update(settings_patch({'text_effect':'matrix','claude_mascot':True}))
                 app.save_settings()
                 restored=Application(directory,no_device=True)
                 self.assertEqual(restored.settings['text_effect'],'matrix')
+                self.assertTrue(restored.settings['claude_mascot'])
                 self.assertEqual(restored.settings['text'],'HELLO')
+
+    def test_mascot_preference_accepts_only_explicit_booleans(self):
+        for value in (True,False):self.assertEqual(settings_patch({'claude_mascot':value}),{'claude_mascot':value})
+        for value in (0,1,'true',None,[]):
+            with self.assertRaises(ValueError):settings_patch({'claude_mascot':value})
 
 
 class OwnershipTests(unittest.TestCase):

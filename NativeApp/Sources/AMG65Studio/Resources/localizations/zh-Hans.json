@@ -209,6 +209,8 @@
   "Matrix": "矩阵",
   "Kayan yazı": "滚动文字",
   "Efektler metin ve kota görünümlerinde kullanılır; onay, bilgi ve hata uyarıları sabit kalır.": "效果适用于文字和配额视图；审批、信息请求和错误提示保持静态。",
+  "Claude maskotu": "Claude 吉祥物",
+  "Claude çalışırken yürür; onay veya bilgi beklerken durur.": "Claude 工作时行走；等待审批或信息输入时停下。",
   "Static": "常亮",
   "Single On": "单键点亮",
   "Single Off": "单键熄灭",

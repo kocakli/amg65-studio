@@ -209,6 +209,8 @@
   "Matrix": "マトリックス",
   "Kayan yazı": "スクロール",
   "Efektler metin ve kota görünümlerinde kullanılır; onay, bilgi ve hata uyarıları sabit kalır.": "エフェクトは文字と残り利用枠に適用されます。承認・入力の要求とエラー通知は動かずに表示されます。",
+  "Claude maskotu": "Claude マスコット",
+  "Claude çalışırken yürür; onay veya bilgi beklerken durur.": "Claude の作業中は歩き、承認や入力を待つ間は立ち止まります。",
   "Static": "常時点灯",
   "Single On": "押したキーを点灯",
   "Single Off": "押したキーを消灯",

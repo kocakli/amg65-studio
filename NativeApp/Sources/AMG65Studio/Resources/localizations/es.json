@@ -209,6 +209,8 @@
   "Matrix": "Matrix",
   "Kayan yazı": "Texto desplazable",
   "Efektler metin ve kota görünümlerinde kullanılır; onay, bilgi ve hata uyarıları sabit kalır.": "Los efectos se aplican al texto y a las cuotas; los avisos de aprobación, información y error permanecen fijos.",
+  "Claude maskotu": "Mascota de Claude",
+  "Claude çalışırken yürür; onay veya bilgi beklerken durur.": "Camina mientras Claude trabaja; se detiene al esperar aprobación o información.",
   "Static": "Fijo",
   "Single On": "Encendido por tecla",
   "Single Off": "Apagado por tecla",

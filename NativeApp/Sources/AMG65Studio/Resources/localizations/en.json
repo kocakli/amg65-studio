@@ -209,6 +209,8 @@
   "Matrix": "Matrix",
   "Kayan yazı": "Scrolling text",
   "Efektler metin ve kota görünümlerinde kullanılır; onay, bilgi ve hata uyarıları sabit kalır.": "Effects apply to text and quota views; approval, input and error alerts stay steady.",
+  "Claude maskotu": "Claude mascot",
+  "Claude çalışırken yürür; onay veya bilgi beklerken durur.": "Walks while Claude is working; stops while waiting for approval or input.",
   "Static": "Static",
   "Single On": "Single On",
   "Single Off": "Single Off",

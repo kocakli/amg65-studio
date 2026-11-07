@@ -20,7 +20,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from renderer import (ACTIVITY_LABELS, HEIGHT, WIDTH, apply_text_effect, render_activity,
-                      render_detail, render_overview, render_text, text_width)
+                      render_claude_mascot, render_detail, render_overview, render_text, text_width)
 
 SNAPSHOT = {'providers': [
     {'id':'claude', 'remaining_percent':98, 'stale':False},
@@ -33,6 +33,7 @@ STATES = {'running':'Çalışıyor', 'queued':'Sırada', 'waiting_approval':'Ona
 EFFECT_STEPS = {'scan':64, 'breathe':12, 'matrix':11, 'scroll':64}  # Complete 2 Hz cycles.
 ATTENTION_STATES = {'waiting_approval','waiting_input','error'}
 EXAMPLE_TEXT = 'AMG65 STUDIO'
+MASCOT_STEPS = 12
 
 
 def fixtures():
@@ -70,12 +71,21 @@ def fixtures():
                 apply_text_effect(sequence[phase%len(sequence)], effect, 1, phase*.5,
                                   left=7 if activity else 0)
                 for phase in range(math.lcm(period,len(sequence)))]
+    # A separate scene, never another provider's avatar or an effect layer.
+    for state in STATES:
+        frames['mascot:'+state] = [
+            render_claude_mascot({'provider':'claude','state':state}, SNAPSHOT, 1, phase*.5)
+            for phase in range(MASCOT_STEPS if state=='running' else 2 if state=='completed' else 1)]
     for sequence in frames.values():
         for frame in sequence:
             if len(frame) != WIDTH*HEIGHT or any(len(pixel)!=3 or any(not isinstance(v,int) or not 0<=v<=254 for v in pixel) for pixel in frame):
                 raise ValueError('Renderer returned an invalid RGB frame')
     return frames
 
+
+MASCOT_ROWS = [('mascot:'+state,'Claude maskotu · '+ACTIVITY_LABELS[state],label,
+               'İleri geri yürüyüş' if state=='running' else 'İki karelik sevinç pozu' if state=='completed' else 'Duruma özel sabit poz')
+              for state,label in STATES.items()]
 
 ROWS = [
     ('overview','Genel görünüm','A · Claude / X · Codex / C · Cursor','Kalan haklar: %98 / %46 / %54'),
@@ -96,7 +106,7 @@ ROWS = [
     ('effect:matrix:activity:claude:running','Matrix · Claude RUN','Ad ve durum harfleri aşağı akar','Sol iş simgesi + kota göstergeleri korunur'),
     ('effect:scroll:text','Kayan yazı · metin','Kısa metin de sola doğru akar','Tüm ifade boşlukla tekrarlanır'),
     ('effect:scroll:activity:codex:running','Kayan yazı · Codex RUN','Ad ve durum sola doğru kayar','Sol iş simgesi + kota göstergeleri korunur'),
-]
+] + MASCOT_ROWS
 
 SHEET_WIDTH, SHEET_HEIGHT = 1240, 340+len(ROWS)*130
 PANEL_X, PANEL_WIDTH, PITCH = 343, 845, 12.8
@@ -156,7 +166,7 @@ HTML_TEMPLATE = r'''<!doctype html>
  <div class="matrix-frame"><svg class="matrix" id="preview" viewBox="0 0 756 60" role="img" aria-labelledby="view-title preview-description"><desc id="preview-description">Sentetik Claude yüzde98, Codex yüzde46 ve Cursor yüzde54 kalan kota.</desc></svg></div>
  <div class="rails"><span id="layout-label">A / CLAUDE &nbsp; X / CODEX &nbsp; C / CURSOR</span><span>SAĞ: A · X · C</span></div>
  <div class="controls">
-  <label>Görünüm<select id="mode"><option value="overview">Tüm kotalar</option><option value="detail">Sağlayıcı detayı</option><option value="activity">İş durumu</option><option value="unknown">Bilinmeyen kota</option><option value="stale">Eski kota verisi</option><option value="text">Kişisel metin</option></select></label>
+  <label>Görünüm<select id="mode"><option value="overview">Tüm kotalar</option><option value="detail">Sağlayıcı detayı</option><option value="activity">İş durumu</option><option value="mascot">Claude maskotu</option><option value="unknown">Bilinmeyen kota</option><option value="stale">Eski kota verisi</option><option value="text">Kişisel metin</option></select></label>
   <label>Sağlayıcı<select id="provider"><option value="claude">Claude</option><option value="codex">Codex</option><option value="cursor">Cursor</option></select></label>
   <label>İş durumu<select id="state"><option value="running">RUN · Çalışıyor</option><option value="queued">QUEUE · Sırada</option><option value="waiting_approval">ASK · Onay bekliyor</option><option value="waiting_input">INPUT · Bilgi bekliyor</option><option value="completed">DONE · Tamamlandı</option><option value="error">ERROR · Hata</option></select></label>
   <label>Metin efekti<select id="effect"><option value="none">Sade · efekt yok</option><option value="scan">Tarama</option><option value="breathe">Nefes</option><option value="matrix">Matrix</option><option value="scroll">Kayan yazı</option></select></label>
@@ -167,7 +177,7 @@ HTML_TEMPLATE = r'''<!doctype html>
 <div class="legend" aria-label="Sentetik kalan haklar"><span><i class="dot" style="background:var(--orange)"></i>A · Claude<b>%98</b></span><span><i class="dot" style="background:var(--mint)"></i>X · Codex<b>%46</b></span><span><i class="dot" style="background:var(--blue)"></i>C · Cursor<b>%54</b></span></div>
 <div class="section-head"><h2>Düzen kataloğu</h2><small>Gerçek renderer kareleri · katalog parlaklığı %100</small></div>
 <div class="gallery" id="gallery"></div>
-<p class="foot"><span class="note">Değerlerin tamamı sentetik örnektir; gerçek hesap veya kullanım bilgisi değildir.</span><br>Bu dosya ağ isteği yapmaz, klavyeye bağlanmaz ve ayar değiştirmez. Parlaklık kaydırıcısı önceden üretilmiş RGB değerlerini doğrusal ölçekler. Fiziksel LED renk/parlaklık ölçümü değildir; gerçek cihazın optiği ve ekranınızın renk işleme biçimi farklı görünebilir. Sade modda RUN simgesi hareket eder. Metin efektleri RUN/QUEUE/DONE ekranlarında ad ve duruma uygulanır; sol simge ile sağ kota göstergeleri korunur. ASK/INPUT/ERROR ekranları sabit kalır.</p>
+<p class="foot"><span class="note">Değerlerin tamamı sentetik örnektir; gerçek hesap veya kullanım bilgisi değildir.</span><br>Bu dosya ağ isteği yapmaz, klavyeye bağlanmaz ve ayar değiştirmez. Parlaklık kaydırıcısı önceden üretilmiş RGB değerlerini doğrusal ölçekler. Fiziksel LED renk/parlaklık ölçümü değildir; gerçek cihazın optiği ve ekranınızın renk işleme biçimi farklı görünebilir. Sade modda RUN simgesi hareket eder. Metin efektleri RUN/QUEUE/DONE ekranlarında ad ve duruma uygulanır; sol simge ile sağ kota göstergeleri korunur. ASK/INPUT/ERROR ekranları sabit kalır. Claude maskotu ayrı bir sahnedir; metin efektleri uygulanmaz ve diğer sağlayıcılara uyarlanmaz.</p>
 </main>
 <script type="application/json" id="frame-data">__DATA__</script>
 <script>
@@ -178,17 +188,17 @@ function matrix(svg,frame,brightness=1){
  const desc=svg.querySelector('desc');svg.replaceChildren();if(desc)svg.append(desc);
  frame.forEach((rgb,index)=>{const node=document.createElementNS(NS,'circle');node.setAttribute('cx',String(6+(index%63)*12));node.setAttribute('cy',String(6+Math.floor(index/63)*12));node.setAttribute('r','3.8');const value=rgb.map(v=>Math.round(v*brightness));node.setAttribute('fill',value.some(Boolean)?`rgb(${value.join(',')})`:'#18232f');svg.append(node);});
 }
-function effectProtected(){return $('mode').value==='activity'&&['waiting_approval','waiting_input','error'].includes($('state').value);}
-function key(){const mode=$('mode').value,base=mode==='activity'?`activity:${$('provider').value}:${$('state').value}`:mode==='detail'?`detail:${$('provider').value}`:mode;return !effectProtected()&&$('effect').value!=='none'?`effect:${$('effect').value}:${base}`:base;}
-const explanations={overview:'Üç sağlayıcının kalan hakları aynı anda görünür.',detail:'Seçilen sağlayıcının tam adı, kalan yüzdesi ve sağda tek kota bloğu.',activity:'5 px simge → sağlayıcı adı → durum kodu. Sağdaki üç kota göstergesi sabit kalır.',unknown:'Claude kotası bilinmiyor: -- ve orta nokta. Bilinmeyen değer sıfıra çevrilmez.',stale:'Claude kotası eski: değer soluk, hücre sonunda sarı işaret. Diğer iki kota güncel örnektir.',text:'Sağdaki T simgesi metin modunu belirtir. Kayan yazı seçeneği kısa metinleri de hareket ettirir.'};
+function effectProtected(){return $('mode').value==='mascot'||$('mode').value==='activity'&&['waiting_approval','waiting_input','error'].includes($('state').value);}
+function key(){const mode=$('mode').value;if(mode==='mascot')return `mascot:${$('state').value}`;const base=mode==='activity'?`activity:${$('provider').value}:${$('state').value}`:mode==='detail'?`detail:${$('provider').value}`:mode;return !effectProtected()&&$('effect').value!=='none'?`effect:${$('effect').value}:${base}`:base;}
+const explanations={mascot:'Claude çalışırken 11 × 5 maskot sahnede ileri geri yürür. Diğer durumlarda ilgili poz gösterilir; kota göstergeleri korunur.',overview:'Üç sağlayıcının kalan hakları aynı anda görünür.',detail:'Seçilen sağlayıcının tam adı, kalan yüzdesi ve sağda tek kota bloğu.',activity:'5 px simge → sağlayıcı adı → durum kodu. Sağdaki üç kota göstergesi sabit kalır.',unknown:'Claude kotası bilinmiyor: -- ve orta nokta. Bilinmeyen değer sıfıra çevrilmez.',stale:'Claude kotası eski: değer soluk, hücre sonunda sarı işaret. Diğer iki kota güncel örnektir.',text:'Sağdaki T simgesi metin modunu belirtir. Kayan yazı seçeneği kısa metinleri de hareket ettirir.'};
 const effectNotes={none:'',scan:' Tarama yalnızca yanan piksellerin parlaklığını değiştirir.',breathe:' Nefes efekti parlaklığı hafifçe değiştirir.',matrix:' Harfler gruplar halinde aşağı akar; her dalganın ardından okuma arası verilir.',scroll:' Kısa metinler de sola doğru akar; ifade boşlukla tekrarlanır.'};
-const titles={overview:'Genel görünüm',detail:'Sağlayıcı detayı',activity:'İş durumu',unknown:'Bilinmeyen kota',stale:'Eski kota verisi',text:'Kişisel metin'};
-function render(){const mode=$('mode').value,sequence=data.frames[key()],brightness=Number($('brightness').value)/100;matrix($('preview'),sequence[(animate?phase:0)%sequence.length],brightness);$('brightness-label').textContent='%'+$('brightness').value;$('provider').disabled=!['activity','detail'].includes(mode);$('state').disabled=mode!=='activity';$('effect').disabled=effectProtected();$('explanation').textContent=explanations[mode]+(effectProtected()?' Onay, bilgi bekleme ve hata durumları okunabilirlik için sabit kalır.':effectNotes[$('effect').value]);$('view-title').textContent=mode==='activity'?data.names[$('provider').value]+' · '+data.labels[$('state').value]:mode==='detail'?data.names[$('provider').value]+' · kota detayı':titles[mode];$('layout-label').textContent=mode==='activity'?'SİMGE 0–4 · AD 7–29 · DURUM 32–52':'A / CLAUDE · X / CODEX · C / CURSOR';$('preview-description').textContent=$('view-title').textContent+'. '+explanations[mode]+' Tamamen sentetik örnek veriler.';}
+const titles={mascot:'Claude maskotu',overview:'Genel görünüm',detail:'Sağlayıcı detayı',activity:'İş durumu',unknown:'Bilinmeyen kota',stale:'Eski kota verisi',text:'Kişisel metin'};
+function render(){const mode=$('mode').value;if(mode==='mascot')$('provider').value='claude';const sequence=data.frames[key()],brightness=Number($('brightness').value)/100;matrix($('preview'),sequence[(animate?phase:0)%sequence.length],brightness);$('brightness-label').textContent='%'+$('brightness').value;$('provider').disabled=!['activity','detail'].includes(mode);$('state').disabled=!['activity','mascot'].includes(mode);$('effect').disabled=effectProtected();$('explanation').textContent=explanations[mode]+(mode==='mascot'?' Maskot sahnesine metin efekti uygulanmaz.':effectProtected()?' Onay, bilgi bekleme ve hata durumları okunabilirlik için sabit kalır.':effectNotes[$('effect').value]);$('view-title').textContent=mode==='mascot'?'Claude maskotu · '+data.labels[$('state').value]:mode==='activity'?data.names[$('provider').value]+' · '+data.labels[$('state').value]:mode==='detail'?data.names[$('provider').value]+' · kota detayı':titles[mode];$('layout-label').textContent=mode==='mascot'?'SAHNE 0–24 · A 26–28 · DURUM 32–52':mode==='activity'?'SİMGE 0–4 · AD 7–29 · DURUM 32–52':'A / CLAUDE · X / CODEX · C / CURSOR';$('preview-description').textContent=$('view-title').textContent+'. '+explanations[mode]+' Tamamen sentetik örnek veriler.';}
 for(const id of ['mode','provider','state','effect','brightness'])$(id).addEventListener('input',render);
 $('motion').addEventListener('click',()=>{animate=!animate;$('motion').setAttribute('aria-pressed',String(animate));$('motion').textContent=animate?'Hareket: açık':'Hareket: kapalı';render();});
 for(const [k,title,subtitle,note] of data.rows){const card=document.createElement('article');card.className='tile';const head=document.createElement('div');head.className='tile-head';const strong=document.createElement('strong');strong.textContent=title;const small=document.createElement('small');small.textContent='63 × 5';head.append(strong,small);const frame=document.createElement('div');frame.className='matrix-frame';const svg=document.createElementNS(NS,'svg');svg.classList.add('matrix');svg.setAttribute('viewBox','0 0 756 60');svg.setAttribute('role','img');svg.setAttribute('aria-label',title+' — sentetik örnek');matrix(svg,data.frames[k][k.startsWith('effect:matrix:')?2:k.startsWith('effect:')?6:0]);frame.append(svg);const caption=document.createElement('p');caption.textContent=subtitle+' · '+note;card.append(head,frame,caption);$('gallery').append(card);}
 if(matchMedia('(prefers-reduced-motion: reduce)').matches){animate=false;$('motion').textContent='Hareket: kapalı';$('motion').setAttribute('aria-pressed','false');}
-render();setInterval(()=>{if(animate&&document.visibilityState==='visible'&&(($('mode').value==='activity'&&$('state').value==='running')||(!effectProtected()&&$('effect').value!=='none'))){phase+=1;render();}},500);
+render();setInterval(()=>{if(animate&&document.visibilityState==='visible'&&((['activity','mascot'].includes($('mode').value)&&$('state').value==='running')||($('mode').value==='mascot'&&$('state').value==='completed')||(!effectProtected()&&$('effect').value!=='none'))){phase+=1;render();}},500);
 </script></html>'''
 
 
@@ -256,6 +266,58 @@ def gif_matrix(frames, path, effect='matrix'):
     images[0].save(path,'GIF',save_all=True,append_images=images[1:],duration=500,loop=0,disposal=2,optimize=True)
 
 
+def mascot_artifacts(frames, png_path=None, gif_path=None):
+    """Draw the production sprite at two scales, plus its full walking cycle."""
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError as error:
+        raise SystemExit('Mascot PNG/GIF export needs optional Pillow.') from error
+    font_path=next((p for p in (Path('/System/Library/Fonts/Supplemental/Arial.ttf'),
+                               Path('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf')) if p.is_file()),None)
+    def font(size):
+        return ImageFont.truetype(str(font_path),size) if font_path else ImageFont.load_default(size=size)
+    def pixels(draw,frame,x,y,pitch,radius,width=63):
+        for index,rgb in enumerate(frame):
+            cx=x+(index%width)*pitch;cy=y+(index//width)*pitch
+            draw.ellipse((cx-radius,cy-radius,cx+radius,cy+radius),fill=tuple(rgb) if any(rgb) else '#18232f')
+    if png_path:
+        image=Image.new('RGB',(1240,1050),'#090f16');draw=ImageDraw.Draw(image)
+        draw.text((40,28),'AMG65 STUDIO / CLAUDE MASKOTU',font=font(13),fill='#94a9bd')
+        draw.text((40,62),'Altı durum. Tek küçük karakter.',font=font(34),fill='#edf5fc')
+        draw.text((40,111),'11 × 5 piksel uyarlaması · Gerçek renderer kareleri · Örnek Claude %98 / Codex %46 / Cursor %54',font=font(14),fill='#a9bfd1')
+        draw.text((272,145),'11 × 5 MASKOT',font=font(11),fill='#94a9bd')
+        draw.text((456,145),'63 × 5 TAM SAHNE',font=font(11),fill='#94a9bd')
+        for row,(key,title,label,note) in enumerate(MASCOT_ROWS):
+            y=170+row*130;frame=frames[key][0]
+            draw.rounded_rectangle((30,y,1210,y+116),15,fill='#101a25',outline='#263747')
+            draw.text((48,y+21),'Claude · '+ACTIVITY_LABELS[key.split(':')[1]],font=font(19),fill='#edf5fc')
+            draw.text((48,y+52),label,font=font(14),fill='#a9bfd1')
+            draw.text((48,y+80),note,font=font(11),fill='#7f94a7')
+            draw.rounded_rectangle((266,y+16,436,y+100),11,fill='#05090e',outline='#304152')
+            visible=[x for x in range(25) if any(frame[yy*63+x]!=(0,0,0) for yy in range(5))]
+            left=min(visible,default=0)
+            sprite=[frame[yy*63+x] for yy in range(5) for x in range(left,left+11)]
+            pixels(draw,sprite,283,y+32,13.6,4.6,11)
+            draw.rounded_rectangle((451,y+16,1194,y+100),11,fill='#05090e',outline='#304152')
+            pixels(draw,frame,468,y+34,11.4,3.8)
+        draw.line((40,970,1200,970),fill='#293746')
+        draw.text((40,990),'Sahne 0–24 · Claude kimliği A 26–28 · Durum 32–52 · Kota göstergeleri 57 / 59 / 61',font=font(13),fill='#b7c9d9')
+        draw.text((40,1019),'Örnek veridir; fiziksel LED renk/parlaklık ölçümü değildir. Maskot sahnesine metin efekti uygulanmaz.',font=font(11),fill='#94a9bd')
+        image.save(png_path,'PNG',optimize=True)
+    if gif_path:
+        images=[]
+        for frame in frames['mascot:running']:
+            image=Image.new('RGB',(960,236),'#090f16');draw=ImageDraw.Draw(image)
+            draw.text((28,22),'CLAUDE · ÇALIŞIRKEN İLERİ GERİ YÜRÜR',font=font(23),fill='#edf5fc')
+            draw.text((28,57),'11 × 5 MASKOT  /  63 × 5 TAM SAHNE  /  GERÇEK RENDERER',font=font(11),fill='#94a9bd')
+            draw.rounded_rectangle((24,87,936,182),12,fill='#05090e',outline='#304152')
+            pixels(draw,frame,46,107,14,4.5)
+            draw.text((28,204),'ÖRNEK DURUM · 2 KARE/SN · FİZİKSEL RENK ÖLÇÜMÜ DEĞİLDİR',font=font(11),fill='#94a9bd')
+            draw.text((931,204),'CLAUDE / RUN',font=font(11),fill='#fe5c18',anchor='ra')
+            images.append(image)
+        images[0].save(gif_path,'GIF',save_all=True,append_images=images[1:],duration=500,loop=0,disposal=2,optimize=True)
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--svg',type=Path,default=ROOT/'docs/images/led-layouts.svg')
@@ -263,6 +325,8 @@ def main():
     parser.add_argument('--png',type=Path)
     parser.add_argument('--gif',type=Path)
     parser.add_argument('--scroll-gif',type=Path)
+    parser.add_argument('--mascot-png',type=Path)
+    parser.add_argument('--mascot-gif',type=Path)
     args=parser.parse_args();frames=fixtures()
     args.svg.parent.mkdir(parents=True,exist_ok=True);args.svg.write_text(svg_sheet(frames),encoding='utf-8')
     print(args.svg)
@@ -274,6 +338,12 @@ def main():
         args.gif.parent.mkdir(parents=True,exist_ok=True);gif_matrix(frames,args.gif);print(args.gif)
     if args.scroll_gif:
         args.scroll_gif.parent.mkdir(parents=True,exist_ok=True);gif_matrix(frames,args.scroll_gif,'scroll');print(args.scroll_gif)
+    if args.mascot_png or args.mascot_gif:
+        for path in (args.mascot_png,args.mascot_gif):
+            if path:path.parent.mkdir(parents=True,exist_ok=True)
+        mascot_artifacts(frames,args.mascot_png,args.mascot_gif)
+        for path in (args.mascot_png,args.mascot_gif):
+            if path:print(path)
 
 
 if __name__=='__main__':
