@@ -178,8 +178,9 @@ class Application:
             provider=row.get('provider'); marker=row.get('expires_at')
             with self.lock:
                 completed=row.get('phase')=='complete' and self._completed_logins.get(provider,object())!=marker
-                if completed: self._completed_logins[provider]=marker
-            if completed: self.adapter.request_refresh(force=True)
+            # A refresh already running refuses this one; the next poll must be able to retry.
+            if completed and self.adapter.request_refresh(force=True):
+                with self.lock: self._completed_logins[provider]=marker
         return result
 
     def request(self, command, **params):
@@ -194,10 +195,14 @@ class Application:
                                      'pending':pending,'ok':ok,'updated_at':iso_now()}
 
     def save_settings(self):
-        temporary=self.state_dir/'settings.tmp'
-        temporary.write_text(json.dumps(dict(self.settings,enabled=self.display)))
-        temporary.chmod(0o600)
-        temporary.replace(self.state_dir/'settings.json')
+        try:
+            temporary=self.state_dir/'settings.tmp'
+            temporary.write_text(json.dumps(dict(self.settings,enabled=self.display)))
+            temporary.chmod(0o600)
+            temporary.replace(self.state_dir/'settings.json')
+        except OSError as error:
+            # A full disk is not a USB fault; the worker's OSError path would block a healthy keyboard.
+            logging.warning('Settings were not saved: %s', error)
         with self.lock:
             self.state['settings']=copy.deepcopy(self.settings)
             self.state['running']=self.display
@@ -234,7 +239,10 @@ class Application:
         if self.bridge:
             # A missed ACK requires a new USB attachment, never blind repeated writes.
             self.blocked_identity = self.bridge.identity
-            self.save_blocked_identity()
+            try:
+                self.save_blocked_identity()
+            except OSError as failure:
+                logging.error('USB fault marker was not saved: %s', failure)
             self.bridge.close()
             self.bridge = None
         self.device_status(connected=False, message=message)
@@ -393,6 +401,8 @@ class Application:
 
 
 class Handler(BaseHTTPRequestHandler):
+    timeout = 5
+
     def log_message(self, *args):
         pass
 
@@ -471,7 +481,9 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 return self.reply(404, {'error':'Not found'})
             self.reply(202, {'ok':True, 'message':'İstek alındı; durum ekranda güncelleniyor.'})
-        except (ValueError, UnicodeDecodeError) as error:
+        except TimeoutError:
+            self.close_connection = True
+        except (ValueError, UnicodeDecodeError, RecursionError) as error:
             self.reply(400, {'error':str(error),'code':'invalid_request'})
 
 

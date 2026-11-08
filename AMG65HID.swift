@@ -117,7 +117,7 @@ final class Keyboard {
         if streamActive { try stopStream() }
         let now = Date()
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone.current
+        calendar.timeZone = TimeZone.autoupdatingCurrent
         let c = calendar.dateComponents([.year,.month,.day,.hour,.minute,.second,.weekday], from: now)
         var report = [UInt8](repeating: 0, count: 64)
         report[2] = 0x5a
@@ -129,7 +129,7 @@ final class Keyboard {
         try send(report, expected: 0x41)
         try command(0x02)
         let formatter = ISO8601DateFormatter()
-        formatter.timeZone = TimeZone.current
+        formatter.timeZone = TimeZone.autoupdatingCurrent
         return formatter.string(from: now)
     }
 
@@ -212,7 +212,7 @@ do {
     let keyboard = try Keyboard()
     let arg = CommandLine.arguments.dropFirst().first ?? "--probe"
     if arg == "--sync-time" {
-        emit(["ok": true, "synced_at": try keyboard.syncTime(), "timezone": TimeZone.current.identifier, "acknowledged_packets": keyboard.packets])
+        emit(["ok": true, "synced_at": try keyboard.syncTime(), "timezone": TimeZone.autoupdatingCurrent.identifier, "acknowledged_packets": keyboard.packets])
     } else if arg == "--session" {
         emit(["ok": true, "device": "LEOBOG AMG65", "vendor": "0C45:800A", "registry_id": keyboard.registryID])
         while let line = readLine() {
@@ -221,7 +221,7 @@ do {
                       let request = try JSONSerialization.jsonObject(with: bytes) as? [String: Any],
                       let op = request["op"] as? String else { throw BridgeError("Invalid request") }
                 switch op {
-                case "time": emit(["ok": true, "synced_at": try keyboard.syncTime(), "timezone": TimeZone.current.identifier])
+                case "time": emit(["ok": true, "synced_at": try keyboard.syncTime(), "timezone": TimeZone.autoupdatingCurrent.identifier])
                 case "frame":
                     guard let pixels = request["pixels"] as? [[Int]] else { throw BridgeError("Missing pixels") }
                     try keyboard.frame(pixels)
@@ -235,6 +235,6 @@ do {
         }
         try keyboard.stopStream()
     } else if arg == "--probe" {
-        emit(["ok":true,"device":"LEOBOG AMG65","vendor":"0C45:800A","usage_page":"FF68","timezone":TimeZone.current.identifier,"registry_id":keyboard.registryID])
+        emit(["ok":true,"device":"LEOBOG AMG65","vendor":"0C45:800A","usage_page":"FF68","timezone":TimeZone.autoupdatingCurrent.identifier,"registry_id":keyboard.registryID])
     } else { throw BridgeError("Usage: amg65-hid --probe | --sync-time | --session") }
 } catch { emit(["ok": false,"error": String(describing:error)]); exit(1) }

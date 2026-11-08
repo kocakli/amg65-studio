@@ -206,11 +206,16 @@ final class KeyboardHID: ObservableObject {
         }
     }
 
+    /// Refuses before any packet left the Mac. The device is untouched, so it must not be marked faulted.
+    private func reject(_ lines: [String], _ completion: @escaping (TransactionResult)->Void) {
+        DispatchQueue.main.async { self.busy = false; completion(TransactionResult(ok:false,lines:lines)) }
+    }
+
     func send(_ steps:[AMG65Protocol.Step], completion:@escaping(TransactionResult)->Void) {
         DispatchQueue.main.async { self.busy = true }
         io.async {
             guard !self.faulted, let selected = self.device, self.selectedConnection == .wired else {
-                return self.finish(false,["Kablolu AMG65 bağlantısı gerekli."],completion)
+                return self.reject(["Kablolu AMG65 bağlantısı gerekli."],completion)
             }
             let checksum = AMG65Protocol.checksum(steps)
             let hasData = steps.contains { $0.isData }
@@ -236,7 +241,7 @@ final class KeyboardHID: ObservableObject {
         DispatchQueue.main.async { self.busy = true }
         io.async {
             guard !self.faulted, let selected = self.device, self.selectedConnection == .dongle else {
-                return self.finish(false,["Alıcı bağlantısı gerekli."],completion)
+                return self.reject(["Alıcı bağlantısı gerekli."],completion)
             }
             for packet in packets {
                 guard packet.count == 32, let reply = self.exchange(packet,on:selected), reply.count >= 3,
@@ -261,15 +266,17 @@ final class KeyboardHID: ObservableObject {
         io.async {
             guard !self.faulted, let selected = self.device, self.selectedConnection == .wired,
                   blocks > 0, blocks <= 4096, bytes.count == blocks * 4096, header.count == 64 else {
-                return self.finish(false,["Geçersiz yükleme veya USB bağlantısı."],completion)
+                return self.reject(["Geçersiz yükleme veya USB bağlantısı."],completion)
             }
             func command(_ packet:[UInt8]) -> Bool {
                 guard let reply = self.exchange(packet,on:selected) else { return false }
                 return Self.validACK(reply,opcode:packet[1])
             }
+            // Match the bulk interface to the pinned HID's USB location.
+            let bulk: LCDBulkChannel
+            do { bulk = try LCDBulkChannel(locationID: UInt32(truncatingIfNeeded:self.property(selected,kIOHIDLocationIDKey))) }
+            catch { return self.reject([String(describing:error)],completion) }
             do {
-                // Match the bulk interface to the pinned HID's USB location.
-                let bulk = try LCDBulkChannel(locationID: UInt32(truncatingIfNeeded:self.property(selected,kIOHIDLocationIDKey)))
                 guard command(AMG65Protocol.begin),command(header) else {
                     return self.finish(false,["Yükleme başlığı onaylanmadı."],completion)
                 }

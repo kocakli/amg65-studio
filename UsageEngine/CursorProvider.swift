@@ -139,7 +139,8 @@ enum CursorProvider {
             let missingSidecars = !FileManager.default.fileExists(atPath: database.path + "-wal")
                 && !FileManager.default.fileExists(atPath: database.path + "-shm")
             guard failure.code == SQLITE_CANTOPEN, missingSidecars else {
-                throw UsageFailure(code: "auth_required")
+                // Cursor holding a write lock says nothing about the sign-in; keep the last quota.
+                throw UsageFailure(code: [SQLITE_BUSY, SQLITE_LOCKED, SQLITE_IOERR].contains(failure.code & 0xff) ? "timeout" : "auth_required")
             }
             // Immutable mode would ignore uncheckpointed state in an active WAL.
             // It is used only for an idle main file with no sidecars.

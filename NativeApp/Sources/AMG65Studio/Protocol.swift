@@ -62,7 +62,7 @@ enum AMG65Protocol {
     /// [1] = LCD item to show (list index + 1). The keyboard doesn't echo a checksum for 0x28.
     static func timeSync(_ date: Date, view: UInt8) -> [Step] {
         var gregorian = Calendar(identifier: .gregorian)
-        gregorian.timeZone = .current
+        gregorian.timeZone = .autoupdatingCurrent
         let c = gregorian.dateComponents([.year, .month, .day, .hour, .minute, .second, .weekday], from: date)
         let data = packet([
             0x00, view, 0x5A, UInt8((c.year ?? 2000) % 100), UInt8(c.month ?? 1), UInt8(c.day ?? 1),

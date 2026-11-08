@@ -157,6 +157,16 @@ def install_native_app(source):
             raise
 
 
+def replace_file(source,target):
+    """Swap in a new inode: rewriting a signed Mach-O in place gets its next launch killed."""
+    staging=target.with_name(f'.{target.name}.installing')
+    try:
+        shutil.copy2(source,staging)
+        os.replace(staging,target)
+    finally:
+        staging.unlink(missing_ok=True)
+
+
 def install(dashboard_only=False):
     executable = Path(sys.executable).resolve()
     files = ('app.py','renderer.py','usage_adapter.py','configuration.py','dashboard.html','bin/amg65-hid','bin/amg65-usage','activity.py','activity_hooks.py','account_auth.py','UsageEngine/NOTICE.md','THIRD_PARTY_LICENSE.txt') + (() if dashboard_only else ('bin/claude-auth',))
@@ -168,7 +178,6 @@ def install(dashboard_only=False):
         raise SystemExit('Build the native app first: ./build.sh')
     if not dashboard_only:
         stop_installed_app()
-        install_native_app(native_app)
     old_plist=Path.home()/'Library/LaunchAgents/local.amg65.limits.plist'
     if old_plist.exists():
         subprocess.run(['/bin/launchctl','bootout',f'gui/{os.getuid()}/local.amg65.limits'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
@@ -194,7 +203,7 @@ def install(dashboard_only=False):
         target = DEST/file
         target.parent.mkdir(parents=True, exist_ok=True)
         if (SOURCE/file).resolve() != target.resolve():
-            shutil.copy2(SOURCE/file,target)
+            replace_file(SOURCE/file,target)
     (DEST/'bin/amg65-hid').chmod(0o755)
     (DEST/'bin/amg65-usage').chmod(0o755)
     if not dashboard_only:
@@ -217,6 +226,8 @@ def install(dashboard_only=False):
             raise SystemExit('Service was registered but did not become ready; inspect state/launchd.log.')
         time.sleep(0.2)
     if not dashboard_only:
+        # Swap the app only after its backend is proven ready; a failed upgrade keeps the old app.
+        install_native_app(native_app)
         MENU_PLIST.write_bytes(plistlib.dumps(menu_agent_spec()))
         MENU_PLIST.chmod(0o600)
         start_job(MENU_PLIST)
