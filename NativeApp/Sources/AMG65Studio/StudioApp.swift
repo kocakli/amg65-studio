@@ -1,6 +1,7 @@
 import SwiftUI
 import WebKit
 import AppKit
+import Combine
 import Darwin
 
 @MainActor
@@ -15,12 +16,17 @@ final class DriverSession: ObservableObject {
     private var task: Task<Void,Never>?
     private var generation = 0
     private var nativeConsumers=Set<String>()
+    private var faultObserver:AnyCancellable?
     private let base = URL(string:"http://127.0.0.1:47866")!
 
     init() {
         #if STUDIO_UI_PREVIEW
         return
         #endif
+        // A fault must also end the lease and free the USB handle, not only be displayed.
+        faultObserver=hid.$failedRegistryID.compactMap{$0}.sink { [weak self] _ in
+            Task { @MainActor in if self?.active==true { self?.leave(preserveMessage:true) } }
+        }
         let start=Process(); start.executableURL=URL(fileURLWithPath:"/bin/launchctl")
         start.arguments=["kickstart","gui/\(getuid())/io.github.kocakli.amg65studio"]
         start.standardOutput=FileHandle.nullDevice; start.standardError=FileHandle.nullDevice
@@ -297,7 +303,7 @@ struct StudioRoot: View {
                         else { Label(L("USB durumu bilinmiyor"),systemImage:"questionmark.circle").font(.system(size:11)).foregroundStyle(.secondary) }
                     }
                     if let error = hid.error { Text(L(error)).font(.system(size:12)).foregroundStyle(.orange) }
-                    ScrollView {
+                    Form {
                         Group {
                             switch page {
                             case .lighting: LightingControls()
@@ -309,7 +315,7 @@ struct StudioRoot: View {
                             case .dashboard: EmptyView()
                             }
                         }.disabled(!session.active || hid.busy)
-                    }
+                    }.studioForm().id(page)
                     Text(L("Gösterilen ayarlar yerel tercihlerdir; cihazdan geri okuma yapılmaz.")).font(.system(size:11)).foregroundStyle(.secondary)
                 }.padding(30).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading)
                     .background(Color(red:0.09,green:0.105,blue:0.125))
@@ -384,23 +390,29 @@ struct DashboardWebView:NSViewRepresentable {
     }
 }
 
-private struct StudioCompactKey:EnvironmentKey { static let defaultValue=false }
-extension EnvironmentValues {
-    var studioCompact:Bool { get { self[StudioCompactKey.self] } set { self[StudioCompactKey.self]=newValue } }
+extension View {
+    /// The grouped System Settings look, transparent over the panel or window behind it.
+    func studioForm()->some View {
+        formStyle(.grouped).scrollContentBackground(.hidden)
+            // Grouped forms reserve about 20pt above the first section; keep it level with the content inset.
+            .contentMargins(.top,-10,for:.scrollContent).contentMargins(.bottom,4,for:.scrollContent)
+    }
 }
 
+/// One section of a grouped form. `title` is a catalog key; `footer` is already localized.
 struct Panel<Content:View>:View {
-    @Environment(\.studioCompact) private var compact
     @ObservedObject private var language = StudioLanguage.shared
     var title:String
+    var footer:String?=nil
     @ViewBuilder var content:Content
     var body:some View {
-        VStack(alignment:.leading,spacing:18) {
-            Text(L(title)).font(.system(size:15,weight:.semibold))
+        Section {
             content
-        }.padding(compact ? 14:22).frame(maxWidth:.infinity,alignment:.leading)
-            .background((compact ? Color.primary:Color.white).opacity(0.045),in:RoundedRectangle(cornerRadius:compact ? 10:16))
-            .overlay(RoundedRectangle(cornerRadius:16).stroke(Color.white.opacity(0.06)))
+        } header: {
+            Text(L(title))
+        } footer: {
+            if let footer { Text(footer).font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true) }
+        }
     }
 }
 
@@ -420,22 +432,31 @@ struct ResultView:View {
     }
 }
 
-func colorValue(_ color:Color)->RGB {
-    let value=NSColor(color).usingColorSpace(.deviceRGB) ?? .white
-    return RGB(r:UInt8(max(0,min(255,Int(value.redComponent*255)))),g:UInt8(max(0,min(255,Int(value.greenComponent*255)))),b:UInt8(max(0,min(255,Int(value.blueComponent*255)))))
-}
-
 struct ByteSlider:View {
     @ObservedObject private var language = StudioLanguage.shared
     let title:String
     @Binding var value:UInt8
     var range:ClosedRange<Double> = 1...5
     var body:some View {
+        LabeledContent(L(title)) {
+            HStack {
+                Slider(value:Binding(get:{Double(value)},set:{value=UInt8($0.rounded())}),in:range,step:1).labelsHidden()
+                Text("\(value)").monospacedDigit().frame(width:25,alignment:.trailing)
+            }
+        }
+    }
+}
+
+/// The last row of a device section: its one action, on the trailing edge.
+struct ApplyRow:View {
+    let title:String
+    var disabled=false
+    let action:()->Void
+    var body:some View {
         HStack {
-            Text(L(title)).frame(width:95,alignment:.leading)
-            Slider(value:Binding(get:{Double(value)},set:{value=UInt8($0.rounded())}),in:range,step:1)
-            Text("\(value)").monospacedDigit().frame(width:25)
-        }.font(.system(size:12))
+            Spacer()
+            Button(title,action:action).buttonStyle(.borderedProminent).disabled(disabled)
+        }
     }
 }
 
@@ -444,22 +465,21 @@ struct LightingControls:View {
     @EnvironmentObject var model:LightingModel
     @EnvironmentObject var hid:KeyboardHID
     var body:some View {
-        Panel(title:"Klavye aydınlatması") {
+        Panel(title:"Klavye aydınlatması",footer:L(model.settings.colorful ? "Çok renkli açık. Bir renk seçmek tek renge geçer.":"Seçtiğiniz renk taslaktır; yalnızca Uygula ile klavyeye gönderilir.")) {
             Picker(L("Efekt"),selection:$model.settings.mode) { ForEach(lightingModes) { Text(L($0.name)).tag($0.id) } }
             Toggle(L("Çok renkli"),isOn:$model.settings.colorful)
+            ByteSlider(title:"Parlaklık",value:$model.settings.brightness)
+            ByteSlider(title:"Hız",value:$model.settings.speed)
             InlineColorControls(title:"Tek renk",value:model.selectedColor,onSelect:model.selectColor)
-            Text(L(model.settings.colorful ? "Çok renkli açık. Bir renk seçmek tek renge geçer.":"Seçtiğiniz renk taslaktır; yalnızca Uygula ile klavyeye gönderilir."))
-                .font(.caption).foregroundStyle(.secondary)
             if model.settings.mode != 1 {
-                VStack(alignment:.leading,spacing:6) {
+                HStack {
                     Text(L("Düz bir arka plan için Sabit efekti kullanın. Animasyonlarda renk davranışı değişebilir."))
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+                    Spacer(minLength:8)
                     Button(L("Sabit renge geç")) { model.useStaticColor() }
                 }
             }
-            ByteSlider(title:"Parlaklık",value:$model.settings.brightness)
-            ByteSlider(title:"Hız",value:$model.settings.speed)
-            Button(L("Klavyeye uygula")) { model.apply(using:hid) }.buttonStyle(.borderedProminent).tint(.mint).disabled(model.applying)
+            ApplyRow(title:L("Klavyeye uygula"),disabled:model.applying) { model.apply(using:hid) }
             ResultView(result:model.lastResult)
         }
     }
@@ -485,7 +505,7 @@ struct InlineColorControls:View {
                 Text(L("HEX")).font(.system(size:10,weight:.medium)).foregroundStyle(.secondary)
                 TextField(L("HEX"),text:$hexText)
                     .font(.system(size:12,design:.monospaced)).textFieldStyle(.roundedBorder)
-                    .frame(width:88).accessibilityLabel(L("HEX renk kodu"))
+                    .frame(width:88).labelsHidden().accessibilityLabel(L("HEX renk kodu"))
                     .onChange(of:hexText) { _,new in
                         if let color=RGB.parse(hex:new),color != value { onSelect(color) }
                     }
@@ -536,20 +556,21 @@ struct KeyGrid:View {
     var color:(PhysicalKey)->Color
     var selected:Int?
     var action:(PhysicalKey)->Void
+    private static let extent=KeyboardLayout.litKeys.map(\.rect).reduce(CGRect.null) { $0.union($1) }.size
     var body:some View {
         GeometryReader { proxy in
-            let scale=min(1,proxy.size.width/800)
+            let scale=min(1,proxy.size.width/Self.extent.width)
             ZStack(alignment:.topLeading) {
                 ForEach(KeyboardLayout.litKeys) { key in
                     Button { action(key) } label: {
-                        Text(key.name).font(.system(size:key.name.count>3 ? 8:11,weight:.medium))
+                        Text(key.name).font(.system(size:key.name.count>3 ? 8:11,weight:.medium)).lineLimit(1).minimumScaleFactor(0.7)
                             .frame(width:key.rect.width*scale,height:key.rect.height*scale)
                             .background(color(key).opacity(0.22),in:RoundedRectangle(cornerRadius:5))
-                            .overlay(RoundedRectangle(cornerRadius:5).stroke(selected==key.slot ? Color.white:color(key).opacity(0.5),lineWidth:1))
+                            .overlay(RoundedRectangle(cornerRadius:5).stroke(selected==key.slot ? Color.accentColor:color(key).opacity(0.5),lineWidth:selected==key.slot ? 2:1))
                     }.buttonStyle(.plain).offset(x:key.rect.minX*scale,y:key.rect.minY*scale)
                 }
             }
-        }.frame(height:260)
+        }.aspectRatio(Self.extent.width/Self.extent.height,contentMode:.fit).frame(maxWidth:Self.extent.width)
     }
 }
 
@@ -558,18 +579,17 @@ struct PerKeyControls:View {
     @EnvironmentObject var model:CustomLightModel
     @EnvironmentObject var hid:KeyboardHID
     var body:some View {
-        Panel(title:"Tuşları boya") {
+        Panel(title:"Tuşları boya",footer:L("Rengi seçin, tuşlara tıklayın veya tümünü boyayın. Renkleri uygula ile kaydedin.")) {
             KeyGrid(color:{model.colors[$0.slot]?.color ?? .gray},action:{model.paint($0.slot)})
             InlineColorControls(title:"Fırça",value:model.brush,onSelect:model.selectBrush)
-            Text(L("Rengi seçin, tuşlara tıklayın veya tümünü boyayın. Renkleri uygula ile kaydedin."))
-                .font(.caption).foregroundStyle(.secondary)
             HStack {
-                Toggle(L("Silgi"),isOn:$model.erasing)
+                Toggle(L("Silgi"),isOn:$model.erasing).toggleStyle(.checkbox)
+                Spacer()
                 Button(L("Tümünü boya")) { model.fillAll() }
                 Button(L("Temizle")) { model.colors=[:] }
             }
             ByteSlider(title:"Parlaklık",value:$model.brightness)
-            Button(L("Renkleri uygula")) { model.apply(using:hid) }.buttonStyle(.borderedProminent).tint(.mint).disabled(model.applying)
+            ApplyRow(title:L("Renkleri uygula"),disabled:model.applying) { model.apply(using:hid) }
             ResultView(result:model.lastResult)
         }
     }
@@ -586,20 +606,20 @@ struct KeyControls:View {
     @State private var command=false
     var body:some View {
         Panel(title:"Bir tuş seç ve görevlendir") {
-            KeyGrid(color:{model.assignments[$0.slot] == nil ? .gray:.mint},selected:model.selectedSlot,action:{if $0.remappable {model.selectedSlot=$0.slot}})
+            KeyGrid(color:{model.assignments[$0.slot] == nil ? .gray:.accentColor},selected:model.selectedSlot,action:{if $0.remappable {model.selectedSlot=$0.slot}})
             if let key=model.selectedKey {
                 Text("\(key.name) → \(model.assignments[key.slot]?.localizedTitle ?? L("Varsayılan"))").font(.headline)
                 Picker(L("Yeni tuş"),selection:$code) { ForEach(HIDKeys.groups.flatMap{$0.1}) { Text(L($0.name)).tag($0.code) } }
                 HStack {
                     Toggle("⌃",isOn:$control); Toggle("⇧",isOn:$shift); Toggle("⌥",isOn:$option); Toggle("⌘",isOn:$command)
-                }
-                HStack {
+                    Spacer()
                     Button(L("Atamayı hazırla")) { model.assign(.key(modifiers:(control ? 1:0)|(shift ? 2:0)|(option ? 4:0)|(command ? 8:0),code:code)) }
                     Button(L("Bu tuşu varsayılana al")) { model.assign(nil) }
-                }
+                }.toggleStyle(.button)
             } else { Text(L("Fn tuşu korunur. Klavye görselinden bir tuşa tıkla.")).foregroundStyle(.secondary) }
-            Text(L("Harita bütünüyle yazılır. Uygulama dışındaki mevcut atamalar geri okunamaz.")).font(.caption).foregroundStyle(.orange)
-            Button(L("Tuş haritasını uygula")) { model.apply(using:hid) }.buttonStyle(.borderedProminent).tint(.mint).disabled(model.applying)
+            Label(L("Harita bütünüyle yazılır. Uygulama dışındaki mevcut atamalar geri okunamaz."),systemImage:"exclamationmark.triangle")
+                .font(.caption).foregroundStyle(.orange)
+            ApplyRow(title:L("Tuş haritasını uygula"),disabled:model.applying) { model.apply(using:hid) }
             ResultView(result:model.lastResult)
         }
     }
@@ -610,20 +630,25 @@ struct LCDControls:View {
     @EnvironmentObject var model:ScreenModel
     @EnvironmentObject var hid:KeyboardHID
     var body:some View {
-        Panel(title:"240 × 135 LCD ekran") {
-            if let image=model.animation?.frames.first {
-                Image(decorative:image,scale:1).interpolation(.none).resizable().aspectRatio(240.0/135,contentMode:.fit).frame(maxWidth:480).clipShape(RoundedRectangle(cornerRadius:12))
-            } else { RoundedRectangle(cornerRadius:12).fill(.black).aspectRatio(240.0/135,contentMode:.fit).frame(maxWidth:480).overlay(Text(L(model.loading ? "Görsel hazırlanıyor…":"GIF, PNG veya JPEG seç")).foregroundStyle(.secondary)) }
+        Panel(title:"240 × 135 LCD ekran",footer:L("32 MB / 130 kare sınırı. Yükleme mevcut ekran içeriğinin yerini alır.")) {
+            HStack {
+                Spacer()
+                if let image=model.animation?.frames.first {
+                    Image(decorative:image,scale:1).interpolation(.none).resizable().aspectRatio(240.0/135,contentMode:.fit).frame(maxWidth:320).clipShape(RoundedRectangle(cornerRadius:12))
+                } else { RoundedRectangle(cornerRadius:12).fill(.black).aspectRatio(240.0/135,contentMode:.fit).frame(maxWidth:320).overlay(Text(L(model.loading ? "Görsel hazırlanıyor…":"GIF, PNG veya JPEG seç")).foregroundStyle(.secondary)) }
+                Spacer()
+            }
             HStack {
                 Button(L("Görsel seç…")) { model.chooseFile() }.disabled(model.loading)
-                Toggle(L("Ekranı doldur (kırp)"),isOn:$model.fill)
+                Spacer()
+                Toggle(L("Ekranı doldur (kırp)"),isOn:$model.fill).toggleStyle(.checkbox)
             }
             if let animation=model.animation { Text(L("{0} · {1} kare",animation.name,String(animation.frames.count))).font(.caption) }
-            Text(L("32 MB / 130 kare sınırı. Yükleme mevcut ekran içeriğinin yerini alır.")).font(.caption).foregroundStyle(.secondary)
             if model.uploading { ProgressView(value:model.progress) }
             HStack {
-                Button(L("LCD’ye yükle")) { model.upload(using:hid) }.buttonStyle(.borderedProminent).tint(.mint).disabled(model.animation == nil || model.loading || model.uploading || hid.connection != .wired)
                 Button(L("Tarih ve saati eşitle")) { model.syncTime(using:hid) }.disabled(hid.connection != .wired)
+                Spacer()
+                Button(L("LCD’ye yükle")) { model.upload(using:hid) }.buttonStyle(.borderedProminent).disabled(model.animation == nil || model.loading || model.uploading || hid.connection != .wired)
             }
             ResultView(result:model.lastResult)
             ResultView(result:model.lastTimeSync)
@@ -636,25 +661,24 @@ struct StripControls:View {
     @EnvironmentObject var model:StripModel
     @EnvironmentObject var hid:KeyboardHID
     var body:some View {
-        Panel(title:"63 × 5 LED animasyonu") {
+        Panel(title:"63 × 5 LED animasyonu",footer:L("Yükleme seçili animasyonun yerini alır. Kullanım paneline döndüğünde canlı kullanım görünümü yeniden başlar.")) {
             if let pixels=model.animation?.frames.first {
                 Canvas { context,size in
                     let cell=min(size.width/63,size.height/5)
                     for y in 0..<5 { for x in 0..<63 { context.fill(Path(ellipseIn:CGRect(x:Double(x)*cell,y:Double(y)*cell,width:cell*0.72,height:cell*0.72)),with:.color(pixels[y*63+x].color)) } }
-                }.frame(height:70).padding().background(.black,in:RoundedRectangle(cornerRadius:12))
+                }.frame(height:44).padding(10).background(.black,in:RoundedRectangle(cornerRadius:8))
             }
             Picker(L("Kaynak"),selection:$model.source) { ForEach(StripModel.Source.allCases) {Text(L($0.rawValue)).tag($0)} }.pickerStyle(.segmented)
             if model.source == .text {
-                TextField(L("Metin (en fazla 48 karakter)"),text:$model.text).textFieldStyle(.roundedBorder)
+                TextField(L("Metin (en fazla 48 karakter)"),text:$model.text)
                 Text(L("LED yazı tipi A–Z, 0–9 ve temel noktalama işaretlerini destekler. Diğer karakterler ? olarak gösterilir.")).font(.caption).foregroundStyle(.secondary)
-                ColorPicker(L("Yazı rengi"),selection:Binding(get:{model.textColor.color},set:{model.textColor=colorValue($0)}),supportsOpacity:false)
+                InlineColorControls(title:"Yazı rengi",value:model.textColor) { model.textColor=$0 }
             } else { Button(L("GIF veya görsel seç…")) { model.chooseFile() }.disabled(model.loading) }
             ByteSlider(title:"Parlaklık",value:$model.brightness)
             ByteSlider(title:"Gecikme",value:$model.delay,range:1...100)
             Picker(L("Hedef"),selection:$model.target) { ForEach(StripTarget.allCases) { Text(L($0.rawValue)).tag($0) } }
-            Text(L("Yükleme seçili animasyonun yerini alır. Kullanım paneline döndüğünde canlı kullanım görünümü yeniden başlar.")).font(.caption).foregroundStyle(.secondary)
             if model.uploading {ProgressView(value:model.progress)}
-            Button(L("Animasyonu yükle")) { model.upload(using:hid) }.buttonStyle(.borderedProminent).tint(.mint).disabled(model.animation == nil || model.loading || model.uploading || hid.connection != .wired)
+            ApplyRow(title:L("Animasyonu yükle"),disabled:model.animation == nil || model.loading || model.uploading || hid.connection != .wired) { model.upload(using:hid) }
             ResultView(result:model.lastResult)
         }
     }
@@ -665,10 +689,9 @@ struct DeviceControls:View {
     @EnvironmentObject var model:SettingsModel
     @EnvironmentObject var hid:KeyboardHID
     var body:some View {
-        Panel(title:"Ekran ayarları") {
+        Panel(title:"Ekran ayarları",footer:L("Ayar paketi ekran parlaklığıyla birlikte kayıtlı klavye ayarlarını da gönderir. Oyun modu ve Fn davranışı bu sürümde arayüze eklenmedi.")) {
             ByteSlider(title:"Ekran ışığı",value:$model.settings.screenBrightness,range:1...7)
-            Text(L("Ayar paketi ekran parlaklığıyla birlikte kayıtlı klavye ayarlarını da gönderir. Oyun modu ve Fn davranışı bu sürümde arayüze eklenmedi.")).font(.caption).foregroundStyle(.secondary)
-            Button(L("Parlaklığı uygula")) { model.apply(using:hid) }.buttonStyle(.borderedProminent).tint(.mint).disabled(model.applying || hid.connection != .wired)
+            ApplyRow(title:L("Parlaklığı uygula"),disabled:model.applying || hid.connection != .wired) { model.apply(using:hid) }
             ResultView(result:model.lastResult)
         }
     }

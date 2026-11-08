@@ -28,7 +28,7 @@ import AppKit
                 .environmentObject(lcd).environmentObject(strip).environmentObject(settings)
                 .environment(\.colorScheme,.light)
             let host=NSHostingView(rootView:view)
-            host.frame=CGRect(x:0,y:0,width:section=="keys" ? 760:460,height:section=="usage" ? 410:600)
+            host.frame=CGRect(origin:.zero,size:StudioMenuPopover.size)
             host.layoutSubtreeIfNeeded()
             guard let bitmap=host.bitmapImageRepForCachingDisplay(in:host.bounds) else { fatalError("Could not allocate preview") }
             host.cacheDisplay(in:host.bounds,to:bitmap)

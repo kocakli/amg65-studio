@@ -224,3 +224,11 @@ Claude renk dengesi	Claude color balance	Balance de color de Claude	Claude 色�
 Daha kırmızı	More red	Más rojo	更红	赤を強く
 Daha sarı	More yellow	Más amarillo	更黄	黄を強く
 LED’deki turuncuyu seçtiğiniz tona yaklaştırır.	Adjusts the LED orange toward your chosen shade.	Ajusta el naranja del LED hacia el tono que elegiste.	将 LED 的橙色调整得更接近您选择的色调。	LED のオレンジを選んだ色合いに近づけます。
+LED önizlemesi	LED preview	Vista previa del LED	LED 预览	LED プレビュー
+Anahtar Zinciri izni gerekiyor. İzin verirken “Her Zaman İzin Ver” seçeneğini kullanın.	Keychain access is needed. Choose “Always Allow” in the macOS dialog.	Se necesita acceso al llavero. Elige «Permitir siempre» en el cuadro de macOS.	需要钥匙串访问权限。请在 macOS 对话框中选择“始终允许”。	キーチェーンへのアクセスが必要です。macOS のダイアログで「常に許可」を選んでください。
+Anahtar Zinciri’ne izin ver…	Allow Keychain Access…	Permitir acceso al llavero…	允许访问钥匙串…	キーチェーンへのアクセスを許可…
+Anahtar Zinciri izni alındı.	Keychain access granted.	Acceso al llavero concedido.	已获得钥匙串访问权限。	キーチェーンへのアクセスが許可されました。
+Anahtar Zinciri izni verilmedi.	Keychain access was not granted.	No se concedió acceso al llavero.	未获得钥匙串访问权限。	キーチェーンへのアクセスは許可されませんでした。
+Claude Code kaydı Anahtar Zinciri’nde bulunamadı. Claude Code’da giriş yapın.	No Claude Code item was found in Keychain. Sign in to Claude Code.	No se encontró Claude Code en el llavero. Inicia sesión en Claude Code.	钥匙串中未找到 Claude Code 项目。请登录 Claude Code。	キーチェーンに Claude Code の項目が見つかりません。Claude Code にサインインしてください。
+Anahtar Zinciri izni istenemedi. Yeniden deneyin.	Couldn’t request Keychain access. Try again.	No se pudo solicitar acceso al llavero. Inténtalo de nuevo.	无法请求钥匙串访问权限。请重试。	キーチェーンへのアクセスを要求できませんでした。もう一度お試しください。
+Anahtar Zinciri izni bekleniyor. Hesaplar bölümünden verebilirsiniz.	Waiting for Keychain access. You can allow it in Accounts.	Esperando acceso al llavero. Puedes permitirlo en Cuentas.	正在等待钥匙串访问权限。可在“账户”中允许。	キーチェーンへのアクセス待ちです。「アカウント」で許可できます。

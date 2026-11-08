@@ -27,8 +27,9 @@ struct MenuUsageProvider:Decodable,Identifiable {
     let windows:[MenuUsageWindow]?
     let updatedAt:String?
     let stale:Bool?
+    let error:String?
     enum CodingKeys:String,CodingKey {
-        case id,windows,stale
+        case id,windows,stale,error
         case remainingPercent="remaining_percent",remainingLabel="remaining_label",updatedAt="updated_at"
     }
     var name:String { ["claude":"Claude","cursor":"Cursor","codex":"Codex"][id] ?? id }
@@ -43,7 +44,7 @@ struct MenuUsageProvider:Decodable,Identifiable {
         offline || stale != false || MenuUsageSnapshot.old(updatedAt,now:now) || (selectedWindow?.resetDate.map { $0 <= now } ?? false)
     }
     static func unknown(_ id:String)->MenuUsageProvider {
-        MenuUsageProvider(id:id,remainingPercent:nil,remainingLabel:nil,windows:[],updatedAt:nil,stale:true)
+        MenuUsageProvider(id:id,remainingPercent:nil,remainingLabel:nil,windows:[],updatedAt:nil,stale:true,error:nil)
     }
 }
 
@@ -66,12 +67,19 @@ enum MenuBridgeState:Equatable {
 struct MenuUsageSnapshot:Decodable {
     // Stable codes only. Arbitrary backend diagnostic messages are not displayed.
     struct Device:Decodable { let connected:Bool?; let code:String? }
+    /// A malformed preview must never make the whole status look offline.
+    struct Matrix:Decodable {
+        let pixels:[[Int]]?
+        enum CodingKeys:String,CodingKey { case pixels }
+        init(from decoder:Decoder) throws { pixels=try? decoder.container(keyedBy:CodingKeys.self).decode([[Int]].self,forKey:.pixels) }
+    }
     let providers:[MenuUsageProvider]
     let hardwareOwner:String?
     let device:Device?
     let settings:MenuDisplaySettings?
     let running:Bool?
-    enum CodingKeys:String,CodingKey { case providers,device,settings,running; case hardwareOwner="hardware_owner" }
+    let matrix:Matrix?
+    enum CodingKeys:String,CodingKey { case providers,device,settings,running,matrix; case hardwareOwner="hardware_owner" }
     var orderedProviders:[MenuUsageProvider] {
         ["claude","cursor","codex"].map { id in providers.first{$0.id == id} ?? .unknown(id) }
     }

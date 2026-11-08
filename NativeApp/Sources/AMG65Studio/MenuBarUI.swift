@@ -49,25 +49,16 @@ private enum UsageTab:String,CaseIterable,Identifiable {
     }
 }
 
-/// A quiet native toolbar, flat usage rows and one small action strip.
+/// Provider tabs and flat usage rows. The panel around them owns polling and actions.
 struct MenuUsagePopover:View {
     @ObservedObject private var language=StudioLanguage.shared
     @ObservedObject private var monitor:MenuUsageMonitor
-    private var embedded=false
-    @Environment(\.openWindow) private var openWindow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selected:UsageTab = .overview
-    @State private var action:Task<Void,Never>?
-    init(monitor:MenuUsageMonitor,embedded:Bool=false,tab:String="overview") {
-        _monitor=ObservedObject(wrappedValue:monitor); self.embedded=embedded
+    init(monitor:MenuUsageMonitor,tab:String="overview") {
+        _monitor=ObservedObject(wrappedValue:monitor)
         _selected=State(initialValue:UsageTab(rawValue:tab) ?? .overview)
     }
-    #if STUDIO_UI_PREVIEW
-    init(preview:MenuUsageSnapshot,tab:String="overview") {
-        _monitor=ObservedObject(wrappedValue:MenuUsageMonitor(preview:preview))
-        _selected=State(initialValue:UsageTab(rawValue:tab) ?? .overview)
-    }
-    #endif
 
     var body:some View {
         VStack(spacing:0) {
@@ -87,15 +78,9 @@ struct MenuUsagePopover:View {
                         .fixedSize(horizontal:false,vertical:true).padding(.bottom,10)
                 }
             }.padding(.horizontal,18)
-            if !embedded { Divider().padding(.horizontal,14); footer }
         }
-        .frame(width:embedded ? nil:380,alignment:.topLeading)
         .frame(maxWidth:.infinity,alignment:.topLeading)
-        .background(.regularMaterial)
         .environment(\.locale,language.locale)
-        .task { if !embedded { await monitor.poll() } }
-        .onDisappear { action?.cancel(); action=nil }
-        .onChange(of:language.selection) { _,_ in StudioMenuLocalization.refresh() }
     }
 
     private var tabs:some View {
@@ -143,6 +128,7 @@ struct MenuUsagePopover:View {
                         HStack(spacing:5) {
                             if let reset=row.selectedWindow?.resetDate {
                                 Text(L("Yenilenme: {0}",resetText(reset)))
+                            } else if row.error == "keychain_locked" { Text(L("Anahtar Zinciri izni bekleniyor. Hesaplar bölümünden verebilirsiniz."))
                             } else { Text(L(row.remaining == nil ? "Henüz kullanım verisi yok.":"Kalan kullanım hakları")) }
                             Spacer(minLength:5)
                             freshness(known:row.remaining != nil,stale:stale)
@@ -151,6 +137,13 @@ struct MenuUsagePopover:View {
                 }.buttonStyle(.plain).accessibilityLabel(row.name+", "+percent(row.remaining))
                     .help(L("Sağlayıcı ayrıntılarını göster"))
                 if tab != .cursor { Divider() }
+            }
+            if let pixels=monitor.snapshot?.matrix?.pixels,pixels.count==315 {
+                Divider()
+                VStack(alignment:.leading,spacing:8) {
+                    Text(L("LED önizlemesi")).font(.system(size:10)).foregroundStyle(.secondary)
+                    LEDPreview(pixels:pixels)
+                }.padding(.vertical,13)
             }
         }
     }
@@ -202,41 +195,6 @@ struct MenuUsagePopover:View {
         }
     }
 
-    private var footer:some View {
-        HStack(spacing:7) {
-            Button { StudioLaunch.activateWindow(); openWindow(id:"studio") } label: {
-                HStack(spacing:6) {
-                    Image(systemName:"macwindow").font(.system(size:11))
-                    Text(L("Studio’yu aç")).font(.system(size:11,weight:.medium))
-                }.padding(.vertical,6)
-            }.buttonStyle(.plain)
-            Spacer()
-            Button { perform { await monitor.requestRefresh() } } label: {
-                Image(systemName:"arrow.clockwise").font(.system(size:12)).frame(width:25,height:25)
-            }.buttonStyle(.plain).disabled(monitor.refreshing || monitor.syncing)
-                .help(L("Kullanımı yenile")).accessibilityLabel(L("Kullanımı yenile"))
-            Button { perform { await monitor.syncClock() } } label: {
-                Image(systemName:"clock.arrow.circlepath").font(.system(size:12)).frame(width:25,height:25)
-            }.buttonStyle(.plain).disabled(!monitor.canSync)
-                .help(L("Tarih ve saati eşitle")).accessibilityLabel(L("Tarih ve saati eşitle"))
-            #if STUDIO_UI_PREVIEW
-            Image(systemName:"gearshape").font(.system(size:12)).frame(width:25,height:25)
-            #else
-            Menu {
-                Picker(L("Dil"),selection:$language.selection) {
-                    Text(L("Sistem dili")).tag("system")
-                    ForEach(LocalizationCatalog.codes,id:\.self) { Text(StudioLanguage.names[$0]!).tag($0) }
-                }
-                Divider()
-                Button(L("Quit AMG65 Studio")) { NSApp.terminate(nil) }
-            } label: {
-                Image(systemName:"gearshape").font(.system(size:12)).frame(width:25,height:25)
-            }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                .help(L("Ayarlar ve dil")).accessibilityLabel(L("Ayarlar ve dil"))
-            #endif
-        }.foregroundStyle(.secondary).padding(.horizontal,18).padding(.vertical,7)
-    }
-
     @ViewBuilder private func freshness(known:Bool,stale:Bool)->some View {
         if !known { Text(L("Bilinmiyor")).foregroundStyle(.secondary) }
         else if stale {
@@ -250,7 +208,6 @@ struct MenuUsagePopover:View {
     }
     private func windowLabel(_ value:String)->String { MenuUsageSnapshot.windowLabel(value,catalog:language.catalog,language:language.resolved) }
     private func resetText(_ date:Date)->String { date.formatted(.dateTime.month(.abbreviated).day().hour().minute().locale(language.locale)) }
-    private func perform(_ work:@escaping @MainActor () async -> Void) { action?.cancel(); action=Task { await work() } }
 }
 
 /// A measured value fills the rail; an unknown value is a dotted rail, never zero.
@@ -270,6 +227,27 @@ private struct QuotaMeter:View {
                 }
             }
         }.frame(height:height).accessibilityHidden(true)
+    }
+}
+
+/// The 63 × 5 frame the bridge last rendered for the keyboard.
+private struct LEDPreview:View {
+    let pixels:[[Int]]
+    private static let columns:CGFloat=63.8 // 63 LEDs and the gap before the quota meters
+    var body:some View {
+        Canvas { context,size in
+            let cell=size.width/Self.columns
+            for (index,value) in pixels.enumerated() where value.count == 3 {
+                let x=index%63,y=index/63
+                let left=CGFloat(x)*cell+(x>=56 ? cell*0.8:0)
+                let color=value.contains{$0>0} ? Color(red:Double(value[0])/255,green:Double(value[1])/255,blue:Double(value[2])/255):Color.white.opacity(0.08)
+                context.fill(Path(ellipseIn:CGRect(x:left+cell*0.14,y:CGFloat(y)*cell+cell*0.14,width:cell*0.72,height:cell*0.72)),with:.color(color))
+            }
+        }
+        .aspectRatio(Self.columns/5,contentMode:.fit)
+        .padding(10)
+        .background(Color.black,in:RoundedRectangle(cornerRadius:8))
+        .accessibilityLabel(L("LED önizlemesi"))
     }
 }
 
@@ -303,8 +281,10 @@ private enum MenuSection:String,CaseIterable,Identifiable {
     var native:Bool { ![Self.usage,.display,.accounts].contains(self) }
 }
 
-/// All settings stay in the status-item panel. Only the two keyboard canvases widen.
+/// All settings stay in the status-item panel, at one fixed size: a MenuBarExtra
+/// window that is resized by its content can leave a gap above it.
 struct StudioMenuPopover:View {
+    static let size=CGSize(width:580,height:560)
     @ObservedObject private var language=StudioLanguage.shared
     @EnvironmentObject private var session:DriverSession
     @EnvironmentObject private var hid:KeyboardHID
@@ -328,7 +308,6 @@ struct StudioMenuPopover:View {
         initialUsageTab=tab
     }
     #endif
-    private var wide:Bool { section == .keys || (section == .lighting && perKey) }
     var body:some View {
         HStack(alignment:.top,spacing:0) {
             navigation
@@ -336,27 +315,12 @@ struct StudioMenuPopover:View {
             VStack(spacing:0) {
                 header
                 Divider()
-                #if STUDIO_UI_PREVIEW && !STUDIO_HOST_PREVIEW
-                // ImageRenderer cannot render AppKit's NSScrollView. Keep the
-                // production content and exact top anchor, clipped to its viewport.
-                VStack(alignment:.leading,spacing:0) {
-                    content.padding(section == .usage ? 0:16)
-                    Spacer(minLength:0)
-                }.frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading).clipped()
-                #else
-                ScrollViewReader { scroll in
-                    ScrollView {
-                        VStack(alignment:.leading,spacing:0) {
-                            content.padding(section == .usage ? 0:16)
-                        }.frame(maxWidth:.infinity,alignment:.topLeading).id("menu-content-top")
-                    }.defaultScrollAnchor(.top)
-                        .onChange(of:section) { _,_ in scroll.scrollTo("menu-content-top",anchor:.top) }
-                }.frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading)
-                #endif
+                // The id gives each section its own scroll position.
+                content.id(section).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.top)
                 Divider()
                 footer
             }
-        }.frame(width:wide ? 760:460,height:section == .usage ? 410:600)
+        }.frame(width:Self.size.width,height:Self.size.height)
             .background(.regularMaterial)
             .background(MenuWindowVisibilityBridge { visible in
                 Task { @MainActor in
@@ -367,7 +331,6 @@ struct StudioMenuPopover:View {
                 }
             })
             .environment(\.locale,language.locale)
-            .environment(\.studioCompact,true)
             .task(id:menuVisible) { if menuVisible { await monitor.poll() } }
             .task(id:section.rawValue+String(menuVisible)) {
                 if menuVisible && section == .accounts { await accounts.poll() }
@@ -384,7 +347,7 @@ struct StudioMenuPopover:View {
     }
     private var navigation:some View {
         VStack(spacing:5) {
-            Image(systemName:"keyboard.badge.ellipsis").font(.system(size:18)).padding(.top,17).padding(.bottom,14).accessibilityHidden(true)
+            Image(systemName:"keyboard.badge.ellipsis").font(.system(size:18)).frame(height:53).accessibilityHidden(true)
             ForEach(MenuSection.allCases) { target in
                 Button {
                     section=target
@@ -404,7 +367,9 @@ struct StudioMenuPopover:View {
     }
     private var header:some View {
         let reconnect=monitor.bridgeState == .faultReconnect || (section.native && hid.failedRegistryID != nil)
-        return VStack(alignment:.leading,spacing:3) {
+        // Connection progress lives here so every section starts at the same height.
+        let status:String? = reconnect ? L("USB kablosunu çıkarıp yeniden takın."):(section.native && !session.active ? L(session.message):nil)
+        return VStack(alignment:.leading,spacing:2) {
             HStack(spacing:10) {
                 Text(section.title).font(.system(size:15,weight:.semibold)).lineLimit(1)
                 Spacer(minLength:4)
@@ -427,11 +392,10 @@ struct StudioMenuPopover:View {
                     bridgeIndicator
                 }
             }
-            if reconnect {
-                Text(L("USB kablosunu çıkarıp yeniden takın."))
-                    .font(.system(size:10)).foregroundStyle(.primary).lineLimit(1).minimumScaleFactor(0.85)
+            if let status {
+                Text(status).font(.system(size:10)).foregroundStyle(reconnect ? Color.primary:Color.secondary)
+                    .lineLimit(1).minimumScaleFactor(0.85)
             }
-        // Reuse the existing header: warnings do not shift tabs or enlarge the 410pt usage panel.
         }.padding(.horizontal,18).frame(height:53)
     }
     private var bridgeIndicator:some View {
@@ -456,47 +420,58 @@ struct StudioMenuPopover:View {
     }
     @ViewBuilder private var content:some View {
         switch section {
-        case .usage: MenuUsagePopover(monitor:monitor,embedded:true,tab:initialUsageTab)
+        case .usage: ScrollView { MenuUsagePopover(monitor:monitor,tab:initialUsageTab) }
         case .display: MenuDisplayControls(model:display,offline:monitor.offline) { perform { await display.save(); await monitor.refresh();display.receive(monitor.snapshot) } }
         case .accounts: accountControls
-        default:
-            VStack(alignment:.leading,spacing:12) {
-                Text(L(session.message)).font(.system(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
-                if let error=hid.error { Text(L(error)).font(.system(size:11)).foregroundStyle(.orange).fixedSize(horizontal:false,vertical:true) }
-                if section == .lighting {
-                    Picker(L("Aydınlatma"),selection:$perKey) {
-                        Text(L("Efekt")).tag(false)
-                        Text(L("Tuş renkleri")).tag(true)
-                    }.pickerStyle(.segmented).disabled(hid.busy)
-                }
-                Group {
-                    switch section {
-                    case .lighting: if perKey { PerKeyControls() } else { LightingControls() }
-                    case .keys: KeyControls()
-                    case .lcd: LCDControls()
-                    case .led: StripControls()
-                    case .device: DeviceControls()
-                    default: EmptyView()
-                    }
-                }.disabled(!session.active || hid.busy || session.releasing)
-                Text(L("Gösterilen ayarlar yerel tercihlerdir; cihazdan geri okuma yapılmaz."))
-                    .font(.system(size:10)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
-            }
+        default: devicePage
         }
+    }
+    private var devicePage:some View {
+        VStack(spacing:0) {
+            if section == .lighting {
+                Picker(L("Aydınlatma"),selection:$perKey) {
+                    Text(L("Efekt")).tag(false)
+                    Text(L("Tuş renkleri")).tag(true)
+                }.pickerStyle(.segmented).labelsHidden().disabled(hid.busy)
+                    .frame(maxWidth:.infinity).padding(.horizontal,18).padding(.top,12)
+            }
+            deviceForm
+        }
+    }
+    private var deviceForm:some View {
+        Form {
+            if let error=hid.error {
+                Section { Label(L(error),systemImage:"exclamationmark.triangle").font(.system(size:11)).foregroundStyle(.orange) }
+            }
+            Group {
+                switch section {
+                case .lighting: if perKey { PerKeyControls() } else { LightingControls() }
+                case .keys: KeyControls()
+                case .lcd: LCDControls()
+                case .led: StripControls()
+                case .device: DeviceControls()
+                default: EmptyView()
+                }
+            }.disabled(!session.active || hid.busy || session.releasing)
+            Section {} footer: {
+                Text(L("Gösterilen ayarlar yerel tercihlerdir; cihazdan geri okuma yapılmaz."))
+                    .font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+            }
+        }.studioForm()
     }
     private var footer:some View {
         HStack(spacing:5) {
             Button { StudioLaunch.activateWindow();openWindow(id:"studio") } label: {
                 Image(systemName:"macwindow").font(.system(size:12)).frame(width:26,height:28)
-            }.buttonStyle(.plain).help(L("Studio’yu aç")).accessibilityLabel(L("Studio’yu aç"))
+            }.buttonStyle(.accessoryBar).help(L("Studio’yu aç")).accessibilityLabel(L("Studio’yu aç"))
             Spacer()
             Button { perform { await monitor.requestRefresh();if section == .accounts { await accounts.refresh() } } } label: {
                 Image(systemName:"arrow.clockwise").frame(width:26,height:28)
-            }.buttonStyle(.plain).disabled(monitor.refreshing || monitor.syncing)
+            }.buttonStyle(.accessoryBar).disabled(monitor.refreshing || monitor.syncing)
                 .help(L("Kullanımı yenile")).accessibilityLabel(L("Kullanımı yenile"))
             Button { perform { await monitor.syncClock() } } label: {
                 Image(systemName:"clock.arrow.circlepath").frame(width:26,height:28)
-            }.buttonStyle(.plain).disabled(!monitor.canSync)
+            }.buttonStyle(.accessoryBar).disabled(!monitor.canSync)
                 .help(L("Tarih ve saati eşitle")).accessibilityLabel(L("Tarih ve saati eşitle"))
             #if STUDIO_UI_PREVIEW
             Image(systemName:"gearshape").frame(width:26,height:28)
@@ -515,17 +490,20 @@ struct StudioMenuPopover:View {
         }.font(.system(size:12)).foregroundStyle(.secondary).padding(.horizontal,14).padding(.vertical,5)
     }
     private var accountControls:some View {
-        VStack(alignment:.leading,spacing:0) {
-            Text(L("Hesap bağlantılarınızı buradan yönetin."))
-                .font(.system(size:12)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true).padding(.bottom,10)
+        Form {
             ForEach([UsageTab.codex,.claude,.cursor]) { provider in
                 let row=accounts.row(provider.rawValue)
                 let connection=accounts.connection(row)
-                VStack(alignment:.leading,spacing:10) {
-                    HStack(spacing:8) {
-                        Image(systemName:provider.glyph).foregroundStyle(provider.tint)
-                        Text(provider.title).font(.system(size:14,weight:.semibold))
-                        Spacer()
+                Section {
+                    HStack(alignment:.top,spacing:10) {
+                        Image(systemName:provider.glyph).foregroundStyle(provider.tint).frame(width:18)
+                        VStack(alignment:.leading,spacing:3) {
+                            Text(provider.title).font(.system(size:13,weight:.semibold))
+                            Text(accountMessage(row)).font(.system(size:11))
+                                .foregroundStyle(connection != .connected && row.phase == "error" ? Color.orange:Color.secondary)
+                                .fixedSize(horizontal:false,vertical:true)
+                        }
+                        Spacer(minLength:8)
                         if row.pending { ProgressView().controlSize(.small) }
                         else if connection == .connected {
                             Label(L("Bağlı"),systemImage:"checkmark.circle.fill")
@@ -534,56 +512,68 @@ struct StudioMenuPopover:View {
                                 .background(Color.green.opacity(0.1),in:Capsule())
                         }
                     }
-                    Text(accountMessage(row)).font(.system(size:11)).foregroundStyle(connection != .connected && row.phase == "error" ? Color.orange:Color.secondary)
-                        .fixedSize(horizontal:false,vertical:true)
                     if let code=row.userCode,!code.isEmpty {
                         HStack {
                             Text(code).font(.system(size:16,weight:.semibold,design:.monospaced)).textSelection(.enabled)
                             Spacer()
-                            Button(L("Kodu kopyala")) { NSPasteboard.general.clearContents();NSPasteboard.general.setString(code,forType:.string) }.font(.system(size:11))
+                            Button(L("Kodu kopyala")) { NSPasteboard.general.clearContents();NSPasteboard.general.setString(code,forType:.string) }
                         }
                     }
                     if row.inputRequired == true {
-                        SecureField(L("Yetkilendirme kodu"),text:Binding(get:{accounts.inputCodes[row.provider] ?? ""},set:{accounts.inputCodes[row.provider]=String($0.prefix(2048))}))
-                            .textFieldStyle(.roundedBorder)
-                        Button(L("Kodu gönder")) { perform { await accounts.submit(row.provider) } }
-                            .disabled(accounts.inputCodes[row.provider]?.isEmpty != false || accounts.busy)
+                        HStack {
+                            SecureField(L("Yetkilendirme kodu"),text:Binding(get:{accounts.inputCodes[row.provider] ?? ""},set:{accounts.inputCodes[row.provider]=String($0.prefix(2048))}))
+                                .labelsHidden()
+                            Button(L("Kodu gönder")) { perform { await accounts.submit(row.provider) } }
+                                .disabled(accounts.inputCodes[row.provider]?.isEmpty != false || accounts.busy)
+                        }
                     }
                     if row.phase == "awaiting_confirmation",row.interaction == "workspace_trust",
                        row.actions?.contains("trust_login_workspace")==true {
-                        Text(L("Claude, Studio’nun özel giriş klasörüne güvenmenizi istiyor."))
-                            .font(.system(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
-                        Button(L("Giriş klasörüne güven ve devam et")) { perform { await accounts.confirmWorkspace(row.provider) } }
-                            .disabled(accounts.busy)
+                        HStack {
+                            Text(L("Claude, Studio’nun özel giriş klasörüne güvenmenizi istiyor."))
+                                .font(.system(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+                            Spacer(minLength:8)
+                            Button(L("Giriş klasörüne güven ve devam et")) { perform { await accounts.confirmWorkspace(row.provider) } }
+                                .disabled(accounts.busy)
+                        }
                     }
-                    HStack {
-                        if !row.pending {
-                            if connection == .connected {
-                                Button(L("Hesap değiştir")) { connect(provider.rawValue) }
-                                    .buttonStyle(.bordered).disabled(accounts.busy || accounts.offline)
-                            } else if connection == .requiresSignIn {
-                                Button(L("Yeniden giriş yap")) { connect(provider.rawValue) }
-                                    .buttonStyle(.borderedProminent).disabled(accounts.busy || accounts.offline)
-                            } else {
-                                Button(L("Kullanımı yenile")) { perform { await monitor.requestRefresh();await accounts.refresh() } }
-                                    .buttonStyle(.bordered).disabled(accounts.busy || monitor.refreshing)
-                                Button(L(provider == .cursor ? "Cursor’da giriş yap":"Giriş yap")) { connect(provider.rawValue) }
-                                    .buttonStyle(.plain).disabled(accounts.busy || accounts.offline)
-                            }
-                        }
-                        if let url=MenuAccountsModel.authorizationURL(row.authURL,provider:row.provider),row.pending {
-                            Button(L("Tarayıcıyı aç")) { NSWorkspace.shared.open(url) }.disabled(accounts.busy)
-                        }
-                        if row.pending {
-                            Button(L("İptal")) { perform { await accounts.cancel(row.provider) } }.disabled(accounts.busy)
-                        }
-                    }.font(.system(size:11))
-                }.padding(.vertical,15)
-                if provider != .cursor { Divider() }
+                    accountActions(provider,row:row,connection:connection)
+                }
             }
-            if accounts.offline { Text(L("Yerel köprü çevrimdışı")).font(.system(size:11)).foregroundStyle(.orange).padding(.top,8) }
-            if let message=accounts.message { Text(L(message)).font(.system(size:11)).foregroundStyle(.orange).padding(.top,8) }
-        }
+            if accounts.offline || accounts.message != nil {
+                Section {
+                    if accounts.offline { Text(L("Yerel köprü çevrimdışı")).font(.system(size:11)).foregroundStyle(.orange) }
+                    if let message=accounts.message { Text(L(message)).font(.system(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true) }
+                }
+            }
+        }.studioForm()
+    }
+    private func accountActions(_ provider:UsageTab,row:MenuAccount,connection:MenuAccountConnection)->some View {
+        HStack {
+            Spacer()
+            if let url=MenuAccountsModel.authorizationURL(row.authURL,provider:row.provider),row.pending {
+                Button(L("Tarayıcıyı aç")) { NSWorkspace.shared.open(url) }.disabled(accounts.busy)
+            }
+            if row.pending {
+                Button(L("İptal")) { perform { await accounts.cancel(row.provider) } }.disabled(accounts.busy)
+            } else if connection == .connected {
+                Button(L("Hesap değiştir")) { connect(provider.rawValue) }.disabled(accounts.busy || accounts.offline)
+            } else if connection == .requiresSignIn {
+                Button(L("Yeniden giriş yap")) { connect(provider.rawValue) }
+                    .buttonStyle(.borderedProminent).disabled(accounts.busy || accounts.offline)
+            } else {
+                Button(L(provider == .cursor ? "Cursor’da giriş yap":"Giriş yap")) { connect(provider.rawValue) }
+                    .disabled(accounts.busy || accounts.offline)
+                if provider == .claude,row.usage?.error == "keychain_locked" {
+                    Button(L("Anahtar Zinciri’ne izin ver…")) {
+                        perform { await accounts.grantKeychain();await monitor.requestRefresh();await accounts.refresh() }
+                    }.buttonStyle(.borderedProminent).disabled(accounts.busy)
+                } else {
+                    Button(L("Kullanımı yenile")) { perform { await monitor.requestRefresh();await accounts.refresh() } }
+                        .disabled(accounts.busy || monitor.refreshing)
+                }
+            }
+        }.font(.system(size:11))
     }
     private func accountMessage(_ row:MenuAccount)->String {
         let connection=accounts.connection(row)
@@ -613,6 +603,7 @@ struct StudioMenuPopover:View {
             default:return L("Giriş tamamlanamadı. Yeniden deneyin.")
             }
         default:
+            if row.usage?.error == "keychain_locked" { return L("Anahtar Zinciri izni gerekiyor. İzin verirken “Her Zaman İzin Ver” seçeneğini kullanın.") }
             if row.usage?.inaccessible==true { return L("Hesap bilgilerine erişilemiyor. Erişim izinlerini kontrol edin.") }
             return L("Bağlantı henüz doğrulanamadı. Kullanımı yenileyin.")
         }
@@ -633,27 +624,29 @@ private struct MenuDisplayControls:View {
     @Environment(\.locale) private var locale
     let offline:Bool
     let apply:()->Void
+    private func percent(_ value:Double)->String { value.formatted(.percent.precision(.fractionLength(0)).locale(locale)) }
+    private func hint(_ text:String)->some View {
+        Text(text).font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+    }
     var body:some View {
-        VStack(alignment:.leading,spacing:19) {
-            Toggle(L("Canlı LED görünümü"),isOn:$model.enabled)
-            VStack(alignment:.leading,spacing:7) {
+        Form {
+            Section {
+                Toggle(L("Canlı LED görünümü"),isOn:$model.enabled)
                 Picker(L("Gösterilecek araç"),selection:$model.draft.trackedProvider) {
                     Text(L("Otomatik")).tag("all")
                     Text("Claude").tag("claude")
                     Text("Codex").tag("codex")
                     Text("Cursor").tag("cursor")
                 }.pickerStyle(.menu)
-                Text(L("Seçilen aracın durumları ve çalışma adımları gösterilir."))
-                    .font(.system(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
-            }
-            if model.draft.trackedProvider == "all" {
-                Picker(L("Görünüm"),selection:$model.draft.displayMode) {
-                    Text(L("Toplu görünüm")).tag("overview")
-                    Text(L("Sırayla göster")).tag("rotate")
-                    Text(L("Özel metin")).tag("text")
-                }.pickerStyle(.menu)
-            }
-            VStack(alignment:.leading,spacing:7) {
+                if model.draft.trackedProvider == "all" {
+                    Picker(L("Görünüm"),selection:$model.draft.displayMode) {
+                        Text(L("Toplu görünüm")).tag("overview")
+                        Text(L("Sırayla göster")).tag("rotate")
+                        Text(L("Özel metin")).tag("text")
+                    }.pickerStyle(.menu)
+                }
+            } footer: { hint(L("Seçilen aracın durumları ve çalışma adımları gösterilir.")) }
+            Section {
                 Picker(L("Yazı efekti"),selection:$model.draft.textEffect) {
                     Text(L("Sade")).tag("none")
                     Text(L("Tarama")).tag("scan")
@@ -661,58 +654,62 @@ private struct MenuDisplayControls:View {
                     Text(L("Matrix")).tag("matrix")
                     Text(L("Kayan yazı")).tag("scroll")
                 }.pickerStyle(.menu)
-                Text(L("Efektler metin ve kota görünümlerinde kullanılır; onay, bilgi ve hata uyarıları sabit kalır."))
-                    .font(.system(size:10)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
-            }
-            if model.draft.trackedProvider == "all" && model.draft.displayMode == "text" {
-                VStack(alignment:.leading,spacing:7) {
-                    TextField(L("Özel metin"),text:$model.draft.text).textFieldStyle(.roundedBorder)
-                    Text(L("En fazla 64 ASCII karakter. LED metni büyük harfle gösterilir."))
-                        .font(.system(size:10)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+                if model.draft.trackedProvider == "all" && model.draft.displayMode == "text" {
+                    TextField(L("Özel metin"),text:$model.draft.text)
                     InlineColorControls(title:"Yazı rengi",value:RGB.parse(hex:model.draft.textColor) ?? RGB(r:123,g:220,b:176)) { value in
                         model.draft.textColor=value.hex.lowercased()
                     }
                 }
+            } footer: {
+                hint(L(model.draft.trackedProvider == "all" && model.draft.displayMode == "text"
+                       ? "En fazla 64 ASCII karakter. LED metni büyük harfle gösterilir."
+                       : "Efektler metin ve kota görünümlerinde kullanılır; onay, bilgi ve hata uyarıları sabit kalır."))
             }
-            VStack(alignment:.leading,spacing:7) {
-                HStack { Text(L("Parlaklık"));Spacer();Text(model.draft.brightness.formatted(.percent.precision(.fractionLength(0)))).monospacedDigit() }
-                Slider(value:$model.draft.brightness,in:0...1,step:0.05)
-            }
-            VStack(alignment:.leading,spacing:7) {
-                HStack {
-                    Text(L("Claude renk dengesi"))
-                    Spacer()
-                    Text(model.draft.claudeGreenGain.formatted(.percent.precision(.fractionLength(0)).locale(locale))).monospacedDigit()
+            Section {
+                LabeledContent(L("Parlaklık")) {
+                    HStack {
+                        Slider(value:$model.draft.brightness,in:0...1,step:0.05).labelsHidden()
+                        Text(percent(model.draft.brightness)).monospacedDigit().frame(width:42,alignment:.trailing)
+                    }
                 }
-                Slider(value:$model.draft.claudeGreenGain,in:0...1,step:0.01)
-                    .accessibilityLabel(L("Claude renk dengesi"))
+                VStack(spacing:3) {
+                    LabeledContent(L("Claude renk dengesi")) {
+                        HStack {
+                            Slider(value:$model.draft.claudeGreenGain,in:0...1,step:0.01).labelsHidden()
+                                .accessibilityLabel(L("Claude renk dengesi"))
+                            Text(percent(model.draft.claudeGreenGain)).monospacedDigit().frame(width:42,alignment:.trailing)
+                        }
+                    }
+                    HStack {
+                        Spacer()
+                        Text(L("Daha kırmızı"))
+                        Text(verbatim:"–")
+                        Text(L("Daha sarı"))
+                    }.font(.system(size:10)).foregroundStyle(.secondary)
+                }
+            } footer: { hint(L("LED’deki turuncuyu seçtiğiniz tona yaklaştırır.")) }
+            Section {
+                Toggle(isOn:$model.draft.activityEnabled) {
+                    Text(L("Çalışma ve bekleme durumlarını göster"))
+                    Text(L("Desteklenen olaylarda çalışma, onay ve bilgi bekleme durumları kullanımın yanında gösterilir."))
+                }
+                Toggle(isOn:$model.draft.mascotEnabled) {
+                    Text(L("Araç maskotları"))
+                    Text(L("Claude yengeci, Codex robotu ve Cursor imleci; seçilen araçta veya Otomatik'te gözlenen duruma göre hareket eder."))
+                }
+            }
+            Section {
                 HStack {
-                    Text(L("Daha kırmızı"))
-                    Spacer()
-                    Text(L("Daha sarı"))
-                }.font(.system(size:10)).foregroundStyle(.secondary)
-                Text(L("LED’deki turuncuyu seçtiğiniz tona yaklaştırır."))
-                    .font(.system(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+                    if model.saving { ProgressView().controlSize(.small) }
+                    else if !model.loaded { hint(L("Ekran ayarları bekleniyor…")) }
+                    else if !model.draft.valid { Text(L("Metni ve rengi kontrol edin.")).font(.footnote).foregroundStyle(.orange) }
+                    else if let message=model.message { hint(L(message)) }
+                    Spacer(minLength:8)
+                    Button(L("Değişiklikleri geri al")) { model.discard() }.disabled(!model.dirty || model.saving)
+                    Button(L("Uygula"),action:apply).buttonStyle(.borderedProminent)
+                        .disabled(!model.loaded || !model.dirty || !model.draft.valid || model.saving || offline)
+                }
             }
-            Divider()
-            Toggle(L("Çalışma ve bekleme durumlarını göster"),isOn:$model.draft.activityEnabled)
-            Text(L("Desteklenen olaylarda çalışma, onay ve bilgi bekleme durumları kullanımın yanında gösterilir."))
-                .font(.system(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
-            VStack(alignment:.leading,spacing:7) {
-                Toggle(L("Araç maskotları"),isOn:$model.draft.mascotEnabled)
-                Text(L("Claude yengeci, Codex robotu ve Cursor imleci; seçilen araçta veya Otomatik'te gözlenen duruma göre hareket eder."))
-                    .font(.system(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
-            }
-            HStack {
-                Button(L("Uygula"),action:apply).buttonStyle(.borderedProminent)
-                    .disabled(!model.loaded || !model.dirty || !model.draft.valid || model.saving || offline)
-                Button(L("Değişiklikleri geri al")) { model.discard() }.disabled(!model.dirty || model.saving)
-                Spacer()
-                if model.saving { ProgressView().controlSize(.small) }
-            }
-            if !model.draft.valid { Text(L("Metni ve rengi kontrol edin.")).font(.system(size:11)).foregroundStyle(.orange) }
-            if let message=model.message { Text(L(message)).font(.system(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true) }
-            if !model.loaded { Text(L("Ekran ayarları bekleniyor…")).font(.system(size:11)).foregroundStyle(.secondary) }
-        }.font(.system(size:12)).disabled(model.saving)
+        }.studioForm().disabled(model.saving)
     }
 }

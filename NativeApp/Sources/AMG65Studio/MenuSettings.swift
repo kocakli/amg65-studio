@@ -159,6 +159,34 @@ struct MenuAccountUsage:Decodable {
     }
 }
 
+/// Runs the usage helper's explicit access request. macOS trusts that binary, not this app.
+enum KeychainGrant {
+    enum Outcome:String { case granted,denied,missing,failed }
+    static var helper:URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/AMG65 Studio/bin/amg65-usage")
+    }
+    static func parse(_ output:Data)->Outcome {
+        Outcome(rawValue:String(decoding:output,as:UTF8.self).trimmingCharacters(in:.whitespacesAndNewlines)) ?? .failed
+    }
+    static func request(helper:URL=helper) async->Outcome {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos:.userInitiated).async {
+                let process=Process(),output=Pipe()
+                process.executableURL=helper
+                process.arguments=["--authorize-keychain","claude"]
+                process.standardOutput=output;process.standardError=FileHandle.nullDevice
+                do { try process.run() } catch { continuation.resume(returning:.failed);return }
+                // The dialog waits for the user, but an abandoned one must not pin this request.
+                let limit=DispatchWorkItem { process.terminate() }
+                DispatchQueue.global().asyncAfter(deadline:.now()+120,execute:limit)
+                let data=output.fileHandleForReading.readDataToEndOfFile()
+                process.waitUntilExit();limit.cancel()
+                continuation.resume(returning:process.terminationStatus==0 ? parse(data):.failed)
+            }
+        }
+    }
+}
+
 enum MenuAccountConnection:Equatable { case pending,connected,requiresSignIn,unknown }
 
 struct MenuAccount:Decodable,Identifiable {
@@ -296,6 +324,16 @@ struct MenuAccount:Decodable,Identifiable {
             _ = try await client.request("api/accounts/"+action,body:JSONSerialization.data(withJSONObject:payload))
             await refresh()
         } catch { if !Task.isCancelled { message="Hesap işlemi tamamlanamadı. Yeniden deneyin." } }
+    }
+    func grantKeychain() async {
+        guard !busy else { return }
+        busy=true;message=nil;defer { busy=false }
+        switch await KeychainGrant.request() {
+        case .granted:message="Anahtar Zinciri izni alındı."
+        case .denied:message="Anahtar Zinciri izni verilmedi."
+        case .missing:message="Claude Code kaydı Anahtar Zinciri’nde bulunamadı. Claude Code’da giriş yapın."
+        case .failed:message="Anahtar Zinciri izni istenemedi. Yeniden deneyin."
+        }
     }
     func clearInput() { inputCodes.removeAll() }
 }
