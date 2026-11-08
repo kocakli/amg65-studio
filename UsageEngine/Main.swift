@@ -3,6 +3,10 @@ import Foundation
 @main struct UsageMain {
     static func main() async {
         let arguments=Array(CommandLine.arguments.dropFirst())
+        if arguments==["--authorize-keychain","claude"] {
+            print(CredentialReader.requestKeychainAccess(service:"Claude Code-credentials").rawValue)
+            return
+        }
         let selected:String
         if arguments.isEmpty { selected="all" }
         else if arguments.count==2,arguments[0]=="--provider" { selected=arguments[1] }

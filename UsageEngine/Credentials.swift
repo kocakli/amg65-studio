@@ -3,6 +3,8 @@ import Security
 import LocalAuthentication
 import Darwin
 
+enum KeychainAccess:String { case granted,denied,missing,failed }
+
 enum CredentialReader {
     static func file(_ url:URL)throws->Data? {
         let descriptor=open(url.path,O_RDONLY|O_NOFOLLOW|O_NONBLOCK)
@@ -31,6 +33,10 @@ enum CredentialReader {
     }
     /// Never launches `security` or an authentication prompt in the background.
     static func keychain(service:String,account:String?)throws->Data? {
+        // The query's LAContext and UI flags only govern data-protection items. These
+        // records live in the file-based login keychain, whose ACL dialog ignores both,
+        // so this process-wide switch is what actually forbids the password prompt.
+        guard SecKeychainSetUserInteractionAllowed(false)==errSecSuccess else { throw UsageFailure(code:"keychain_locked") }
         let query=keychainQuery(service:service,account:account)
         var item:CFTypeRef?
         let status=SecItemCopyMatching(query as CFDictionary,&item)
@@ -51,6 +57,25 @@ enum CredentialReader {
         ]
         if let account { query[kSecAttrAccount as String]=account }
         return query
+    }
+    /// The only path allowed to show macOS's dialog. Only an explicit user action in the
+    /// native app starts it. The secret is read to satisfy the ACL, then discarded unseen.
+    static func requestKeychainAccess(service:String)->KeychainAccess {
+        guard SecKeychainSetUserInteractionAllowed(true)==errSecSuccess else { return .failed }
+        var item:CFTypeRef?
+        switch SecItemCopyMatching(keychainAccessQuery(service:service) as CFDictionary,&item) {
+        case errSecSuccess:return .granted
+        case errSecItemNotFound:return .missing
+        case errSecUserCanceled,errSecAuthFailed:return .denied
+        default:return .failed
+        }
+    }
+    static func keychainAccessQuery(service:String)->[String:Any] {
+        // Asking for the data, not just its attributes, is what triggers the ACL check.
+        [kSecClass as String:kSecClassGenericPassword,
+         kSecAttrService as String:service,
+         kSecMatchLimit as String:kSecMatchLimitOne,
+         kSecReturnData as String:true]
     }
     static func directory(_ value:String?,fallback:URL)throws->URL {
         guard let value,!value.isEmpty else { return fallback }
