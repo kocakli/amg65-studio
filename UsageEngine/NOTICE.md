@@ -31,7 +31,7 @@ These are provider session endpoints, not a guaranteed public API contract. An
 expired provider-owned session must be renewed by signing in to Codex, Claude Code,
 or Cursor. The engine never rotates shared refresh tokens or modifies their stores.
 Blocked Keychain access returns a fixed error without prompting. Interactive access
-is a separate `--authorize-keychain claude` mode that only the native application's
+is a separate `--authorize-keychain` mode for Claude and Cursor that only the native application's
 explicit **Allow Keychain Access** action starts; it prints an outcome, never the secret.
 
 A valid Claude profile file takes precedence. When the default profile file is

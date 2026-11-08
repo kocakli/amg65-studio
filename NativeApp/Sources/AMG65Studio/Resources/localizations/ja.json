@@ -233,6 +233,7 @@
   "Claude Code kaydı Anahtar Zinciri’nde bulunamadı. Claude Code’da giriş yapın.": "キーチェーンに Claude Code の項目が見つかりません。Claude Code にサインインしてください。",
   "Anahtar Zinciri izni istenemedi. Yeniden deneyin.": "キーチェーンへのアクセスを要求できませんでした。もう一度お試しください。",
   "Anahtar Zinciri izni bekleniyor. Hesaplar bölümünden verebilirsiniz.": "キーチェーンへのアクセス待ちです。「アカウント」で許可できます。",
+  "Cursor kaydı Anahtar Zinciri’nde bulunamadı. Cursor’da giriş yapın.": "キーチェーンに Cursor の項目が見つかりません。Cursor にサインインしてください。",
   "Static": "常時点灯",
   "Single On": "押したキーを点灯",
   "Single Off": "押したキーを消灯",

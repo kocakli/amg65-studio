@@ -60,22 +60,36 @@ enum CredentialReader {
     }
     /// The only path allowed to show macOS's dialog. Only an explicit user action in the
     /// native app starts it. The secret is read to satisfy the ACL, then discarded unseen.
-    static func requestKeychainAccess(service:String)->KeychainAccess {
-        guard SecKeychainSetUserInteractionAllowed(true)==errSecSuccess else { return .failed }
-        var item:CFTypeRef?
-        switch SecItemCopyMatching(keychainAccessQuery(service:service) as CFDictionary,&item) {
-        case errSecSuccess:return .granted
-        case errSecItemNotFound:return .missing
-        case errSecUserCanceled,errSecAuthFailed:return .denied
-        default:return .failed
+    static func requestKeychainAccess(provider:String)->KeychainAccess {
+        guard let target=keychainAccessTarget(provider:provider),
+              SecKeychainSetUserInteractionAllowed(true)==errSecSuccess else { return .failed }
+        for account in target.accounts {
+            var item:CFTypeRef?
+            switch SecItemCopyMatching(keychainAccessQuery(service:target.service,account:account) as CFDictionary,&item) {
+            case errSecSuccess:return .granted
+            case errSecItemNotFound:continue
+            case errSecUserCanceled,errSecAuthFailed:return .denied
+            default:return .failed
+            }
+        }
+        return .missing
+    }
+    /// The records each provider's reader opens, in the order it opens them.
+    static func keychainAccessTarget(provider:String)->(service:String,accounts:[String?])? {
+        switch provider {
+        case "claude":return ("Claude Code-credentials",[nil])
+        case "cursor":return ("Cursor Safe Storage",["Cursor Key","Cursor"])
+        default:return nil
         }
     }
-    static func keychainAccessQuery(service:String)->[String:Any] {
+    static func keychainAccessQuery(service:String,account:String?)->[String:Any] {
         // Asking for the data, not just its attributes, is what triggers the ACL check.
-        [kSecClass as String:kSecClassGenericPassword,
-         kSecAttrService as String:service,
-         kSecMatchLimit as String:kSecMatchLimitOne,
-         kSecReturnData as String:true]
+        var query:[String:Any]=[kSecClass as String:kSecClassGenericPassword,
+                                kSecAttrService as String:service,
+                                kSecMatchLimit as String:kSecMatchLimitOne,
+                                kSecReturnData as String:true]
+        if let account { query[kSecAttrAccount as String]=account }
+        return query
     }
     static func directory(_ value:String?,fallback:URL)throws->URL {
         guard let value,!value.isEmpty else { return fallback }

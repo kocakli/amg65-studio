@@ -3,8 +3,8 @@ import Foundation
 @main struct UsageMain {
     static func main() async {
         let arguments=Array(CommandLine.arguments.dropFirst())
-        if arguments==["--authorize-keychain","claude"] {
-            print(CredentialReader.requestKeychainAccess(service:"Claude Code-credentials").rawValue)
+        if arguments.count==2,arguments[0]=="--authorize-keychain" {
+            print(CredentialReader.requestKeychainAccess(provider:arguments[1]).rawValue)
             return
         }
         let selected:String

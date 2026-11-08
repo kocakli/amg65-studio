@@ -444,6 +444,10 @@ import Darwin
         let neverVerified=accountFixture(percent:nil,stale:true,error:"network_error",measured:nil)
         let unknownAccounts=MenuAccountsModel();unknownAccounts.receive([neverVerified],at:current)
         check(unknownAccounts.connection(neverVerified,at:current) == .unknown,"network error without authentication evidence is unknown, not a forced login")
+        check(KeychainGrant.parse(Data("granted\n".utf8)) == .granted,"helper grant outcome is parsed")
+        check(KeychainGrant.parse(Data("unexpected".utf8)) == .failed,"unknown helper output is a failure")
+        check(KeychainGrant.arguments(for:"cursor") == ["--authorize-keychain","cursor"],"Cursor can request Keychain access")
+        check(KeychainGrant.arguments(for:"codex") == nil,"Codex has no Keychain record to request")
         for failure in ["keychain_locked","credentials_unreadable","access_denied"] {
             let inaccessible=accountFixture(phase:"complete",error:failure)
             check(inaccessible.connection(at:current) == .unknown,"unreadable or denied credentials do not display a connected badge")

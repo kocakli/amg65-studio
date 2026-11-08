@@ -168,12 +168,16 @@ enum KeychainGrant {
     static func parse(_ output:Data)->Outcome {
         Outcome(rawValue:String(decoding:output,as:UTF8.self).trimmingCharacters(in:.whitespacesAndNewlines)) ?? .failed
     }
-    static func request(helper:URL=helper) async->Outcome {
-        await withCheckedContinuation { continuation in
+    static func arguments(for provider:String)->[String]? {
+        ["claude","cursor"].contains(provider) ? ["--authorize-keychain",provider]:nil
+    }
+    static func request(provider:String,helper:URL=helper) async->Outcome {
+        guard let arguments=arguments(for:provider) else { return .failed }
+        return await withCheckedContinuation { continuation in
             DispatchQueue.global(qos:.userInitiated).async {
                 let process=Process(),output=Pipe()
                 process.executableURL=helper
-                process.arguments=["--authorize-keychain","claude"]
+                process.arguments=arguments
                 process.standardOutput=output;process.standardError=FileHandle.nullDevice
                 do { try process.run() } catch { continuation.resume(returning:.failed);return }
                 // The dialog waits for the user, but an abandoned one must not pin this request.
@@ -325,12 +329,13 @@ struct MenuAccount:Decodable,Identifiable {
             await refresh()
         } catch { if !Task.isCancelled { message="Hesap işlemi tamamlanamadı. Yeniden deneyin." } }
     }
-    func grantKeychain() async {
+    func grantKeychain(_ provider:String) async {
         guard !busy else { return }
         busy=true;message=nil;defer { busy=false }
-        switch await KeychainGrant.request() {
+        switch await KeychainGrant.request(provider:provider) {
         case .granted:message="Anahtar Zinciri izni alındı."
         case .denied:message="Anahtar Zinciri izni verilmedi."
+        case .missing where provider=="cursor":message="Cursor kaydı Anahtar Zinciri’nde bulunamadı. Cursor’da giriş yapın."
         case .missing:message="Claude Code kaydı Anahtar Zinciri’nde bulunamadı. Claude Code’da giriş yapın."
         case .failed:message="Anahtar Zinciri izni istenemedi. Yeniden deneyin."
         }

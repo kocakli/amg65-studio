@@ -233,6 +233,7 @@
   "Claude Code kaydı Anahtar Zinciri’nde bulunamadı. Claude Code’da giriş yapın.": "钥匙串中未找到 Claude Code 项目。请登录 Claude Code。",
   "Anahtar Zinciri izni istenemedi. Yeniden deneyin.": "无法请求钥匙串访问权限。请重试。",
   "Anahtar Zinciri izni bekleniyor. Hesaplar bölümünden verebilirsiniz.": "正在等待钥匙串访问权限。可在“账户”中允许。",
+  "Cursor kaydı Anahtar Zinciri’nde bulunamadı. Cursor’da giriş yapın.": "钥匙串中未找到 Cursor 项目。请登录 Cursor。",
   "Static": "常亮",
   "Single On": "单键点亮",
   "Single Off": "单键熄灭",

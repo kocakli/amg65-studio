@@ -233,6 +233,7 @@
   "Claude Code kaydı Anahtar Zinciri’nde bulunamadı. Claude Code’da giriş yapın.": "No Claude Code item was found in Keychain. Sign in to Claude Code.",
   "Anahtar Zinciri izni istenemedi. Yeniden deneyin.": "Couldn’t request Keychain access. Try again.",
   "Anahtar Zinciri izni bekleniyor. Hesaplar bölümünden verebilirsiniz.": "Waiting for Keychain access. You can allow it in Accounts.",
+  "Cursor kaydı Anahtar Zinciri’nde bulunamadı. Cursor’da giriş yapın.": "No Cursor item was found in Keychain. Sign in to Cursor.",
   "Static": "Static",
   "Single On": "Single On",
   "Single Off": "Single Off",

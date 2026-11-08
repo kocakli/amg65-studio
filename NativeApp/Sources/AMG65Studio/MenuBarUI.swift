@@ -564,9 +564,9 @@ struct StudioMenuPopover:View {
             } else {
                 Button(L(provider == .cursor ? "Cursor’da giriş yap":"Giriş yap")) { connect(provider.rawValue) }
                     .disabled(accounts.busy || accounts.offline)
-                if provider == .claude,row.usage?.error == "keychain_locked" {
+                if provider != .codex,row.usage?.error == "keychain_locked" {
                     Button(L("Anahtar Zinciri’ne izin ver…")) {
-                        perform { await accounts.grantKeychain();await monitor.requestRefresh();await accounts.refresh() }
+                        perform { await accounts.grantKeychain(provider.rawValue);await monitor.requestRefresh();await accounts.refresh() }
                     }.buttonStyle(.borderedProminent).disabled(accounts.busy)
                 } else {
                     Button(L("Kullanımı yenile")) { perform { await monitor.requestRefresh();await accounts.refresh() } }
